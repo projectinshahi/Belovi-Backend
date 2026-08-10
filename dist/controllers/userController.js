@@ -1,0 +1,116 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.toggleCustomerStatus = exports.getAllCustomers = exports.editAddress = exports.deleteAddress = exports.addAddress = exports.updateProfile = exports.getAddresses = exports.getProfile = void 0;
+const User_1 = require("../models/User");
+const asyncHandler_1 = require("../utils/asyncHandler");
+const responseHandler_1 = require("../utils/responseHandler");
+exports.getProfile = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const user = await User_1.User.findById(req.user?._id).select('-password');
+    if (!user)
+        return (0, responseHandler_1.errorResponse)(res, 404, 'User not found');
+    const userData = {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role
+    };
+    (0, responseHandler_1.successResponse)(res, 200, 'Profile fetched successfully', userData);
+});
+exports.getAddresses = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const user = await User_1.User.findById(req.user?._id);
+    if (!user)
+        return (0, responseHandler_1.errorResponse)(res, 404, 'User not found');
+    (0, responseHandler_1.successResponse)(res, 200, 'Addresses fetched successfully', user.addresses || []);
+});
+exports.updateProfile = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { name, phone } = req.body;
+    const updatedFields = {};
+    if (name)
+        updatedFields.name = name;
+    if (phone !== undefined)
+        updatedFields.phone = phone;
+    const user = await User_1.User.findByIdAndUpdate(req.user?._id, { $set: updatedFields }, { new: true, runValidators: true });
+    if (!user)
+        return (0, responseHandler_1.errorResponse)(res, 404, 'User not found');
+    const updatedUser = {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role
+    };
+    (0, responseHandler_1.successResponse)(res, 200, 'Profile updated successfully', updatedUser);
+});
+exports.addAddress = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const user = await User_1.User.findById(req.user?._id);
+    if (!user)
+        return (0, responseHandler_1.errorResponse)(res, 404, 'User not found');
+    if (!user.addresses) {
+        user.addresses = [];
+    }
+    const { street, apartment, landmark, city, state, zipCode, country } = req.body;
+    if (!city || !state) {
+        return (0, responseHandler_1.errorResponse)(res, 400, 'City and State are required');
+    }
+    user.addresses.push({ street, apartment, landmark, city, state, zipCode, country });
+    await user.save();
+    (0, responseHandler_1.successResponse)(res, 201, 'Address added successfully', user.addresses);
+});
+// Delete Address
+exports.deleteAddress = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const user = await User_1.User.findById(req.user?._id);
+    if (!user)
+        return (0, responseHandler_1.errorResponse)(res, 404, 'User not found');
+    const { addressId } = req.params;
+    user.addresses = (user.addresses || []).filter((addr) => addr._id?.toString() !== addressId);
+    await user.save();
+    (0, responseHandler_1.successResponse)(res, 200, 'Address removed successfully', user.addresses);
+});
+// Edit Address
+exports.editAddress = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const user = await User_1.User.findById(req.user?._id);
+    if (!user)
+        return (0, responseHandler_1.errorResponse)(res, 404, 'User not found');
+    const { addressId } = req.params;
+    const addressIndex = user.addresses?.findIndex((addr) => addr._id?.toString() === addressId);
+    if (addressIndex === undefined || addressIndex === -1) {
+        return (0, responseHandler_1.errorResponse)(res, 404, 'Address not found');
+    }
+    const { street, apartment, landmark, city, state, zipCode, country } = req.body;
+    if (!city || !state) {
+        return (0, responseHandler_1.errorResponse)(res, 400, 'City and State are required');
+    }
+    if (user.addresses) {
+        user.addresses[addressIndex] = {
+            ...user.addresses[addressIndex],
+            street,
+            apartment,
+            landmark,
+            city,
+            state,
+            zipCode,
+            country
+        };
+    }
+    await user.save();
+    (0, responseHandler_1.successResponse)(res, 200, 'Address updated successfully', user.addresses);
+});
+// Admin: Get all customers
+exports.getAllCustomers = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const customers = await User_1.User.find({ role: 'customer' })
+        .select('name email phone isActive createdAt')
+        .sort({ createdAt: -1 });
+    (0, responseHandler_1.successResponse)(res, 200, 'Customers fetched successfully', customers);
+});
+// Admin: Toggle customer active status (block/unblock)
+exports.toggleCustomerStatus = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+    const { id } = req.params;
+    const user = await User_1.User.findById(id);
+    if (!user)
+        return (0, responseHandler_1.errorResponse)(res, 404, 'Customer not found');
+    user.isActive = !user.isActive;
+    await user.save();
+    (0, responseHandler_1.successResponse)(res, 200, `Customer ${user.isActive ? 'unblocked' : 'blocked'} successfully`, user);
+});
+//# sourceMappingURL=userController.js.map
