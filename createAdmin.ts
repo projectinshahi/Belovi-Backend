@@ -12,7 +12,7 @@ const createOrUpdateAdmin = async () => {
 
     // CHANGE THESE VALUES TO YOUR DESIRED ADMIN CREDENTIALS
     const email = 'admin@belovi.in';
-    const password = 'genesis@123';
+    const password = 'belovi@123';
     const name = 'System Admin';
 
     let admin = await User.findOne({ email });
