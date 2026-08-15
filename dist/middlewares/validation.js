@@ -55,6 +55,12 @@ exports.schemas = {
             otp: zod_1.z.string().length(6, 'OTP must be 6 digits').regex(/^\d+$/, 'OTP must contain only numbers'),
         }),
     }),
+    /** Resending a verification code needs only the address it was sent to. */
+    emailOnly: zod_1.z.object({
+        body: zod_1.z.object({
+            email: zod_1.z.string().email('Invalid email address'),
+        }),
+    }),
     // Product schemas
     createProduct: zod_1.z.object({
         body: zod_1.z.object({

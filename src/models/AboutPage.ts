@@ -1,14 +1,16 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 /**
- * The About Us page — one singleton document, four authored blocks:
- * intro, company profile, vision, showroom.
+ * The About Us page — one singleton document, five authored blocks:
+ * intro, company profile, story, vision, showroom.
  *
  * Flat fields rather than nested objects: the admin edits them in one form, and
- * `Object.assign` from a multipart body then works without walking a tree. The
- * page's *story* is not here — that stays the existing StorySection feed, which
- * the About page renders between vision and showroom, so there is one place to
- * write the story rather than two that can disagree.
+ * `Object.assign` from a multipart body then works without walking a tree.
+ *
+ * The story block used to be absent here, on the reasoning that the About page
+ * rendered the StorySection feed instead. The redesign gives About its own
+ * single story block with its own photograph, so `story*` now lives alongside
+ * the others; the StorySection feed is untouched and still drives /story.
  *
  * Every field is optional and every block on the storefront omits itself when
  * empty, so an unfilled About page renders as a shorter page, never a broken one.
@@ -31,10 +33,16 @@ export interface IAboutPage extends Document {
   profileBody?: string;
   profileImage?: string;
 
+  // Story
+  storyTitle?: string;
+  storyBody?: string;
+  storyImage?: string;
+
   // Vision
   visionEyebrow?: string;
   visionTitle?: string;
   visionBody?: string;
+  visionImage?: string;
   visionPoints: IVisionPoint[];
 
   // Showroom
@@ -72,9 +80,14 @@ const aboutPageSchema = new Schema<IAboutPage>(
     profileBody: { type: String },
     profileImage: { type: String, trim: true },
 
+    storyTitle: { type: String, trim: true },
+    storyBody: { type: String },
+    storyImage: { type: String, trim: true },
+
     visionEyebrow: { type: String, trim: true },
     visionTitle: { type: String, trim: true },
     visionBody: { type: String },
+    visionImage: { type: String, trim: true },
     visionPoints: { type: [visionPointSchema], default: [] },
 
     showroomEyebrow: { type: String, trim: true },

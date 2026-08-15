@@ -279,11 +279,25 @@ export const getAllOrders = async (req: Request, res: Response) => {
   }
 };
 
+/** The Order schema's `orderStatus` enum, the single source for what admins may set. */
+const ORDER_STATUSES = ['processing', 'shipped', 'delivered', 'cancelled'];
+
 // Admin: Update Order Status
 export const updateOrderStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { orderStatus } = req.body;
+
+    // `findByIdAndUpdate` does not run schema validators, so without this an
+    // out-of-enum status persists silently and every consumer that switches on
+    // it — the storefront's profile page, the emails below — falls through to
+    // nothing. The admin's own select is not a guard; this is.
+    if (!ORDER_STATUSES.includes(orderStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Order status must be one of: ${ORDER_STATUSES.join(', ')}.`,
+      });
+    }
 
     const order = await Order.findByIdAndUpdate(
       id,

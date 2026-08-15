@@ -67,7 +67,10 @@ export const schemas = {
   createProduct: z.object({
     body: z.object({
       name: z.string().min(1, 'Product name is required').max(200),
-      description: z.string().min(10, 'Description must be at least 10 characters').max(5000),
+      description: z
+        .string()
+        .min(10, 'Description must be at least 10 characters')
+        .max(200, 'Description cannot exceed 200 characters'),
       price: z.number().positive('Price must be positive').or(z.string().transform(Number)),
       category: z.string().min(1, 'Category is required'),
       stock: z.number().int().nonnegative('Stock cannot be negative').or(z.string().transform(Number)),
@@ -81,7 +84,7 @@ export const schemas = {
     }),
     body: z.object({
       name: z.string().min(1).max(200).optional(),
-      description: z.string().min(10).max(5000).optional(),
+      description: z.string().min(10).max(200).optional(),
       price: z.number().positive().or(z.string().transform(Number)).optional(),
       category: z.string().optional(),
       stock: z.number().int().nonnegative().or(z.string().transform(Number)).optional(),

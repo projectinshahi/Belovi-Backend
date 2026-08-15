@@ -3,6 +3,25 @@ import { Product } from '../models/Product';
 import { asyncHandler } from '../utils/asyncHandler';
 import { successResponse, errorResponse } from '../utils/responseHandler';
 
+/** Mirrors NEW_IMAGE_TOKEN in the admin (products/_components/types.ts). */
+const NEW_IMAGE_TOKEN = '__new__';
+
+/**
+ * Stitch the admin's ordered `images` array back together with the files it
+ * uploaded alongside it. Each NEW_IMAGE_TOKEN takes the next uploaded URL, so
+ * a shot picked in this same save can still be `images[0]` — the primary.
+ *
+ * Uploads with no token left to claim them are appended, which is exactly what
+ * a client that sends no tokens at all (the previous behaviour) gets.
+ */
+export const mergeImageOrder = (images: string[], uploaded: string[]): string[] => {
+  let next = 0;
+  const ordered = images
+    .map(url => (url === NEW_IMAGE_TOKEN ? uploaded[next++] : url))
+    .filter(Boolean);
+  return [...ordered, ...uploaded.slice(next)];
+};
+
 // Attach uploaded files to the product (imageFiles) and to each variant (variantImages_<index>)
 const attachUploads = (req: Request) => {
   const files = (Array.isArray(req.files) ? req.files : []) as Express.Multer.File[];
@@ -21,12 +40,12 @@ const attachUploads = (req: Request) => {
     }
   }
 
-  // Product-level images: existing URLs from body + newly uploaded imageFiles
+  // Product-level images: the admin's ordered list, with uploads slotted in.
   const productFileUrls = files.filter(f => f.fieldname === 'imageFiles').map(f => f.path);
   if (typeof req.body.images === 'string') {
     req.body.images = [req.body.images];
   }
-  req.body.images = [...(req.body.images || []), ...productFileUrls];
+  req.body.images = mergeImageOrder(req.body.images || [], productFileUrls);
 
   // Per-variant images: merge existing URLs (already in the parsed variant) with uploaded files
   if (Array.isArray(req.body.variants)) {

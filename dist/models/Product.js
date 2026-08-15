@@ -33,21 +33,23 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Product = exports.CATEGORIES = void 0;
+exports.Product = exports.SHOP_CATEGORIES = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
+const Category_1 = require("./Category");
 /**
- * The storefront's fixed categories — the Shop menu, the category filters and a
- * piece's Category field all read this one list. It is closed on purpose: the
- * studio files a piece under one of these, it cannot invent, rename or delete
- * them. Mirrored by `CATEGORIES` in the admin (products/_components/types.ts)
- * and the storefront (lib/categories.ts); this schema enum is the real gate,
- * enforced on create and on update (`runValidators`).
+ * The five fixed categories, always offered. They drive the storefront's Shop
+ * menu and cannot be created, renamed or deleted from anywhere in the admin.
+ *
+ * Mirrored by `SHOP_CATEGORIES` in the admin (products/_components/types.ts) and
+ * the storefront (lib/categories.ts) — `check-categories.mjs` asserts the three
+ * copies agree.
  */
-exports.CATEGORIES = [
+exports.SHOP_CATEGORIES = [
     'Luxury Furniture',
     'Positioning',
     'Wellness',
     'Accessories',
+    'All Products',
 ];
 const specSchema = new mongoose_1.Schema({
     label: { type: String, required: true, trim: true },
@@ -63,7 +65,28 @@ const variantSchema = new mongoose_1.Schema({
 });
 const productSchema = new mongoose_1.Schema({
     name: { type: String, required: true, trim: true },
-    category: { type: String, required: true, enum: [...exports.CATEGORIES] },
+    /**
+     * Either one of the five fixed categories, or one the studio created in
+     * Category Management. Both appear in the admin's Product Details dropdown,
+     * so both are accepted here — and nothing else is.
+     *
+     * This is the real gate, enforced on create and on update (`runValidators`),
+     * so a direct POST can't bypass the dropdown. The fixed names are checked
+     * first, which keeps the common case off the database entirely.
+     *
+     * Existence, not ACTIVE: deactivating a studio category must not make every
+     * product already filed under it unsaveable. The dropdown offers active ones.
+     */
+    category: {
+        type: String,
+        required: true,
+        trim: true,
+        validate: {
+            validator: async (name) => exports.SHOP_CATEGORIES.includes(name) ||
+                (await Category_1.Category.exists({ name })) !== null,
+            message: '"{VALUE}" is not a fixed category or one of the studio\'s categories.',
+        },
+    },
     description: { type: String },
     variants: [variantSchema],
     starRating: { type: Number, default: 0, min: 0, max: 5 },

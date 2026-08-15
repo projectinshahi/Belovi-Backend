@@ -13,9 +13,13 @@ const TEXT_FIELDS = [
   'profileTitle',
   'profileBody',
   'profileImage',
+  'storyTitle',
+  'storyBody',
+  'storyImage',
   'visionEyebrow',
   'visionTitle',
   'visionBody',
+  'visionImage',
   'showroomEyebrow',
   'showroomTitle',
   'showroomBody',
@@ -57,6 +61,8 @@ export const updateAboutPage = asyncHandler(async (req: Request, res: Response) 
   for (const file of files) {
     if (file.fieldname === 'introImageFile') about.introImage = file.path;
     else if (file.fieldname === 'profileImageFile') about.profileImage = file.path;
+    else if (file.fieldname === 'storyImageFile') about.storyImage = file.path;
+    else if (file.fieldname === 'visionImageFile') about.visionImage = file.path;
     else if (file.fieldname === 'showroomImageFiles') {
       about.showroomImages = [...(about.showroomImages || []), file.path];
     }
