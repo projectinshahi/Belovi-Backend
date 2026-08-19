@@ -53,3 +53,4 @@
 {"level":"warn","message":"CORS blocked request from origin: http://localhost:3100","service":"belovi-backend","timestamp":"2026-08-12 22:47:34"}
 {"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Shipped - BELOVI\" to marshookali98@gmail.com","service":"belovi-backend","timestamp":"2026-08-14 17:33:25"}
 {"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Confirmation - BELOVI\" to marshookali98@gmail.com","service":"belovi-backend","timestamp":"2026-08-15 19:36:59"}
+{"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Confirmation - BELOVI\" to marshookali98@gmail.com","service":"belovi-backend","timestamp":"2026-08-17 16:23:04"}
