@@ -40,12 +40,21 @@ const attachUploads = (req: Request) => {
     }
   }
 
-  // Product-level images: the admin's ordered list, with uploads slotted in.
+  /* Product-level images: the admin's ordered list, with uploads slotted in.
+   *
+   * ONLY when the request actually carries them. This used to run
+   * unconditionally, so a save that sent no `images` field wrote an empty array
+   * over whatever the piece already had — silently deleting its photographs.
+   * A client that does not manage this field must be able to save without
+   * destroying it. */
   const productFileUrls = files.filter(f => f.fieldname === 'imageFiles').map(f => f.path);
-  if (typeof req.body.images === 'string') {
-    req.body.images = [req.body.images];
+  const carriesImages = req.body.images !== undefined || productFileUrls.length > 0;
+  if (carriesImages) {
+    if (typeof req.body.images === 'string') {
+      req.body.images = [req.body.images];
+    }
+    req.body.images = mergeImageOrder(req.body.images || [], productFileUrls);
   }
-  req.body.images = mergeImageOrder(req.body.images || [], productFileUrls);
 
   // Per-variant images: merge existing URLs (already in the parsed variant) with uploaded files
   if (Array.isArray(req.body.variants)) {
