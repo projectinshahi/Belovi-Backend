@@ -77,3 +77,20 @@ export const uploadBrochure = multer({
     cb(null, true);
   },
 });
+
+/** Most bytes a single section image may be. Mirrored by the admin's picker. */
+export const MAX_IMAGE_MB = 10;
+
+/**
+ * Photograph-only uploads for the homepage sections. Same Cloudinary storage as
+ * `upload`, but anything that is not a JPEG, PNG or WebP is refused before it
+ * is stored, with a 400 rather than Cloudinary's opaque error.
+ */
+export const uploadImages = multer({
+  storage,
+  limits: { fileSize: MAX_IMAGE_MB * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (['image/png', 'image/jpeg', 'image/webp'].includes(file.mimetype)) return cb(null, true);
+    cb(Object.assign(new Error('Images must be PNG, JPEG or WebP.'), { statusCode: 400 }));
+  },
+});

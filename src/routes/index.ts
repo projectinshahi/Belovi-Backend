@@ -19,6 +19,8 @@ import editSectionRoutes from './editSectionRoutes';
 import siteSettingsRoutes from './siteSettingsRoutes';
 import aboutRoutes from './aboutRoutes';
 import brochureRoutes from './brochureRoutes';
+import videoRoutes from './videoRoutes';
+import collectionSectionRoutes from './collectionSectionRoutes';
 
 const router = Router();
 
@@ -45,5 +47,7 @@ router.use('/edit-sections', editSectionRoutes);
 router.use('/site-settings', siteSettingsRoutes);
 router.use('/about', aboutRoutes);
 router.use('/brochures', brochureRoutes);
+router.use('/videos', videoRoutes);
+router.use('/collection-section', collectionSectionRoutes);
 
 export default router;

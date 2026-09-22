@@ -54,3 +54,5 @@
 {"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Shipped - BELOVI\" to marshookali98@gmail.com","service":"belovi-backend","timestamp":"2026-08-14 17:33:25"}
 {"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Confirmation - BELOVI\" to marshookali98@gmail.com","service":"belovi-backend","timestamp":"2026-08-15 19:36:59"}
 {"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Confirmation - BELOVI\" to marshookali98@gmail.com","service":"belovi-backend","timestamp":"2026-08-17 16:23:04"}
+{"level":"warn","message":"🔑 DEV ONLY — email is not configured. Verification code for marsh.dev01@gmail.com: 276419","service":"belovi-backend","timestamp":"2026-09-22 09:03:27"}
+{"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Confirmation - BELOVI\" to marshookali98@gmail.com","service":"belovi-backend","timestamp":"2026-09-22 16:01:06"}
