@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
+import { Product } from '../models/Product';
 import {
   COLLECTION_DEFAULTS,
   CollectionSection,
@@ -11,17 +13,21 @@ import { successResponse, errorResponse } from '../utils/responseHandler';
 const isImageRef = (v: unknown): v is string =>
   typeof v === 'string' && (/^https:\/\/\S+$/i.test(v) || /^\/images\/[^\s<>"']+$/.test(v.replace(/ /g, '%20')));
 
+/** Just enough of a linked product to show its name in the admin. */
+const LINKED = { path: 'images.product', select: 'name' };
+
 export const getCollectionSection = asyncHandler(async (_req: Request, res: Response) => {
-  const doc = await CollectionSection.findOne();
+  const doc = await CollectionSection.findOne().populate(LINKED);
   successResponse(res, 200, 'Collection section fetched', doc ?? COLLECTION_DEFAULTS);
 });
 
 /**
  * One multipart save for the whole section.
  *
- * `images` arrives as JSON, in display order: `[{ image?, alt, file? }]`, where
- * `file` is an index into the uploaded `imageFiles` (a new or replaced image)
- * and `image` is the URL an unchanged one already has. Adding, editing,
+ * `images` arrives as JSON, in display order: `[{ image?, alt, file?, product? }]`,
+ * where `file` is an index into the uploaded `imageFiles` (a new or replaced
+ * image), `image` is the URL an unchanged one already has, and `product` is the
+ * id of the piece it links to (empty for no link). Adding, editing,
  * reordering and deleting are all just a different array. `mainImageFile`, when
  * sent, replaces `mainImage`.
  *
@@ -62,7 +68,7 @@ export const updateCollectionSection = asyncHandler(async (req: Request, res: Re
     );
   }
 
-  const images: { image: string; alt: string }[] = [];
+  const images: { image: string; alt: string; product: string | null }[] = [];
   for (const [i, item] of (raw as Record<string, unknown>[]).entries()) {
     const fromFile = typeof item?.file === 'number' ? uploads[item.file]?.path : undefined;
     const image = fromFile ?? item?.image;
@@ -71,13 +77,26 @@ export const updateCollectionSection = asyncHandler(async (req: Request, res: Re
     if (alt.length > LIMITS.alt) {
       return errorResponse(res, 400, `Image ${i + 1}'s label must be ${LIMITS.alt} characters or fewer.`);
     }
-    images.push({ image, alt });
+    const product = item?.product ? String(item.product) : null;
+    if (product && !mongoose.isValidObjectId(product)) {
+      return errorResponse(res, 400, `Image ${i + 1} links to a product that does not exist.`);
+    }
+    images.push({ image, alt, product });
+  }
+
+  // Every linked product must still exist, so no image links to a dead page.
+  const linked = [...new Set(images.map((i) => i.product).filter((p): p is string => !!p))];
+  if (linked.length) {
+    const found = await Product.countDocuments({ _id: { $in: linked } });
+    if (found !== linked.length) {
+      return errorResponse(res, 400, 'One of the linked products no longer exists. Choose another.');
+    }
   }
 
   const doc = await CollectionSection.findOneAndUpdate(
     {},
     { heading, description, mainImage, images },
     { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
-  );
+  ).populate(LINKED);
   successResponse(res, 200, 'Collection section saved', doc);
 });

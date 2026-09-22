@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Types } from 'mongoose';
 
 /**
  * The homepage Collection band, directly below the hero: a heading, a
@@ -11,10 +11,15 @@ import mongoose, { Document, Schema } from 'mongoose';
  * Scrolling images are product cut-outs (transparent PNGs work best). The
  * storefront draws each one over the shared white plate artwork itself, so no
  * uploaded file needs the plate baked in.
+ *
+ * `product` optionally links an image to a piece; clicking it on the storefront
+ * opens that product's page. It is a reference, not a typed URL, so a deleted
+ * product simply drops the link (populate yields null) instead of breaking it.
  */
 export interface ICollectionImage {
   image: string;
   alt: string;
+  product?: Types.ObjectId | null;
 }
 
 export interface ICollectionSection extends Document {
@@ -42,6 +47,7 @@ export const COLLECTION_DEFAULTS = {
 const collectionImageSchema = new Schema<ICollectionImage>({
   image: { type: String, required: true, trim: true },
   alt: { type: String, trim: true, maxlength: LIMITS.alt, default: '' },
+  product: { type: Schema.Types.ObjectId, ref: 'Product', default: null },
 });
 
 const collectionSectionSchema = new Schema<ICollectionSection>(
