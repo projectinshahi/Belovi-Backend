@@ -1,9 +1,27 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteProduct = exports.updateProduct = exports.getProductById = exports.getProducts = exports.createProduct = void 0;
+exports.deleteProduct = exports.updateProduct = exports.getProductById = exports.getProducts = exports.createProduct = exports.mergeImageOrder = void 0;
 const Product_1 = require("../models/Product");
 const asyncHandler_1 = require("../utils/asyncHandler");
 const responseHandler_1 = require("../utils/responseHandler");
+/** Mirrors NEW_IMAGE_TOKEN in the admin (products/_components/types.ts). */
+const NEW_IMAGE_TOKEN = '__new__';
+/**
+ * Stitch the admin's ordered `images` array back together with the files it
+ * uploaded alongside it. Each NEW_IMAGE_TOKEN takes the next uploaded URL, so
+ * a shot picked in this same save can still be `images[0]` — the primary.
+ *
+ * Uploads with no token left to claim them are appended, which is exactly what
+ * a client that sends no tokens at all (the previous behaviour) gets.
+ */
+const mergeImageOrder = (images, uploaded) => {
+    let next = 0;
+    const ordered = images
+        .map(url => (url === NEW_IMAGE_TOKEN ? uploaded[next++] : url))
+        .filter(Boolean);
+    return [...ordered, ...uploaded.slice(next)];
+};
+exports.mergeImageOrder = mergeImageOrder;
 // Attach uploaded files to the product (imageFiles) and to each variant (variantImages_<index>)
 const attachUploads = (req) => {
     const files = (Array.isArray(req.files) ? req.files : []);
@@ -21,12 +39,21 @@ const attachUploads = (req) => {
             }
         }
     }
-    // Product-level images: existing URLs from body + newly uploaded imageFiles
+    /* Product-level images: the admin's ordered list, with uploads slotted in.
+     *
+     * ONLY when the request actually carries them. This used to run
+     * unconditionally, so a save that sent no `images` field wrote an empty array
+     * over whatever the piece already had — silently deleting its photographs.
+     * A client that does not manage this field must be able to save without
+     * destroying it. */
     const productFileUrls = files.filter(f => f.fieldname === 'imageFiles').map(f => f.path);
-    if (typeof req.body.images === 'string') {
-        req.body.images = [req.body.images];
+    const carriesImages = req.body.images !== undefined || productFileUrls.length > 0;
+    if (carriesImages) {
+        if (typeof req.body.images === 'string') {
+            req.body.images = [req.body.images];
+        }
+        req.body.images = (0, exports.mergeImageOrder)(req.body.images || [], productFileUrls);
     }
-    req.body.images = [...(req.body.images || []), ...productFileUrls];
     // Per-variant images: merge existing URLs (already in the parsed variant) with uploaded files
     if (Array.isArray(req.body.variants)) {
         req.body.variants = req.body.variants.map((variant, index) => {

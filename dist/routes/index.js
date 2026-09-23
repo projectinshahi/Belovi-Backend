@@ -24,6 +24,8 @@ const editSectionRoutes_1 = __importDefault(require("./editSectionRoutes"));
 const siteSettingsRoutes_1 = __importDefault(require("./siteSettingsRoutes"));
 const aboutRoutes_1 = __importDefault(require("./aboutRoutes"));
 const brochureRoutes_1 = __importDefault(require("./brochureRoutes"));
+const videoRoutes_1 = __importDefault(require("./videoRoutes"));
+const collectionSectionRoutes_1 = __importDefault(require("./collectionSectionRoutes"));
 const router = (0, express_1.Router)();
 // Health Check
 router.get('/health', healthController_1.checkHealth);
@@ -47,5 +49,7 @@ router.use('/edit-sections', editSectionRoutes_1.default);
 router.use('/site-settings', siteSettingsRoutes_1.default);
 router.use('/about', aboutRoutes_1.default);
 router.use('/brochures', brochureRoutes_1.default);
+router.use('/videos', videoRoutes_1.default);
+router.use('/collection-section', collectionSectionRoutes_1.default);
 exports.default = router;
 //# sourceMappingURL=index.js.map

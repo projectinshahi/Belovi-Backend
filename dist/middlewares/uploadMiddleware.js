@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadBrochure = exports.upload = void 0;
+exports.uploadImages = exports.MAX_IMAGE_MB = exports.uploadBrochure = exports.upload = void 0;
 const multer_1 = __importDefault(require("multer"));
 const cloudinary_1 = require("cloudinary");
 const multer_storage_cloudinary_1 = require("multer-storage-cloudinary");
@@ -71,6 +71,22 @@ exports.uploadBrochure = (0, multer_1.default)({
                 : 'The cover must be an image.'));
         }
         cb(null, true);
+    },
+});
+/** Most bytes a single section image may be. Mirrored by the admin's picker. */
+exports.MAX_IMAGE_MB = 10;
+/**
+ * Photograph-only uploads for the homepage sections. Same Cloudinary storage as
+ * `upload`, but anything that is not a JPEG, PNG or WebP is refused before it
+ * is stored, with a 400 rather than Cloudinary's opaque error.
+ */
+exports.uploadImages = (0, multer_1.default)({
+    storage,
+    limits: { fileSize: exports.MAX_IMAGE_MB * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+        if (['image/png', 'image/jpeg', 'image/webp'].includes(file.mimetype))
+            return cb(null, true);
+        cb(Object.assign(new Error('Images must be PNG, JPEG or WebP.'), { statusCode: 400 }));
     },
 });
 //# sourceMappingURL=uploadMiddleware.js.map

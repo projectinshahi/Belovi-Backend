@@ -5,15 +5,29 @@ const Category_1 = require("../models/Category");
 const asyncHandler_1 = require("../utils/asyncHandler");
 const responseHandler_1 = require("../utils/responseHandler");
 /**
- * Ceiling on studio-managed categories. The storefront's category grid is laid
- * out for a bounded set, so the cap is enforced here — at the API — not only in
- * the admin UI, which a direct POST would bypass.
+ * Ceiling on categories. The storefront's Shop menu and pill rail are laid out
+ * for a bounded set, so the cap is enforced here — at the API — not only in the
+ * admin UI, which a direct POST would bypass.
  */
 exports.MAX_CATEGORIES = 8;
+/**
+ * Rejects a name already spoken for, so the studio gets "already exists" instead
+ * of Mongo's E11000. `excludeId` lets an edit keep its own name.
+ *
+ * The unique index on the model is still the guarantee — this is the message.
+ */
+const nameTaken = async (name, excludeId) => {
+    const existing = await Category_1.Category.findOne({ name }).select('_id').lean();
+    return !!existing && String(existing._id) !== excludeId;
+};
 exports.createCategory = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     const count = await Category_1.Category.countDocuments();
     if (count >= exports.MAX_CATEGORIES) {
         return (0, responseHandler_1.errorResponse)(res, 400, `A maximum of ${exports.MAX_CATEGORIES} categories is allowed. Delete one to add another.`);
+    }
+    const name = String(req.body.name || '').trim();
+    if (await nameTaken(name)) {
+        return (0, responseHandler_1.errorResponse)(res, 400, `"${name}" already exists. Edit the existing one rather than adding a second.`);
     }
     if (req.file) {
         req.body.image = req.file.path;
@@ -29,6 +43,10 @@ exports.updateCategory = (0, asyncHandler_1.asyncHandler)(async (req, res) => {
     let category = await Category_1.Category.findById(req.params.id);
     if (!category) {
         return (0, responseHandler_1.errorResponse)(res, 404, 'Category not found');
+    }
+    const name = String(req.body.name || '').trim();
+    if (name && (await nameTaken(name, req.params.id))) {
+        return (0, responseHandler_1.errorResponse)(res, 400, `"${name}" already exists.`);
     }
     if (req.file) {
         req.body.image = req.file.path;

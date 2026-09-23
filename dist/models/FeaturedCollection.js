@@ -43,9 +43,24 @@ const DEFAULTS = {
     ctaLabel: 'View All Pieces',
     ctaHref: '/products',
     isVisible: true,
-    products: [],
-    images: [],
 };
+/**
+ * Cards keep their default `_id`.
+ *
+ * Position is still the ORDERING — the array is stored in display order and the
+ * admin reorders by moving entries within it, so there is no `order` field
+ * duplicating that fact. But position cannot be the IDENTITY: each card has its
+ * own listing page at `/collections/<id>`, and a URL that meant a different
+ * collection every time the studio reordered the rail would break every link
+ * ever shared. The id is what survives reordering and retitling.
+ */
+const featuredCardSchema = new mongoose_1.Schema({
+    products: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'Product' }],
+    image: { type: String, default: '' },
+    badge: { type: String, default: '', trim: true },
+    title: { type: String, default: '', trim: true },
+    subtitle: { type: String, default: '', trim: true },
+});
 const featuredCollectionSchema = new mongoose_1.Schema({
     eyebrow: { type: String, default: DEFAULTS.eyebrow },
     heading: { type: String, default: DEFAULTS.heading },
@@ -53,8 +68,7 @@ const featuredCollectionSchema = new mongoose_1.Schema({
     ctaLabel: { type: String, default: DEFAULTS.ctaLabel },
     ctaHref: { type: String, default: DEFAULTS.ctaHref },
     isVisible: { type: Boolean, default: DEFAULTS.isVisible },
-    products: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'Product', default: [] }],
-    images: { type: [String], default: DEFAULTS.images },
+    cards: { type: [featuredCardSchema], default: [] },
 }, { timestamps: true });
 exports.FeaturedCollection = mongoose_1.default.model('FeaturedCollection', featuredCollectionSchema);
 async function getOrCreateFeaturedCollection() {

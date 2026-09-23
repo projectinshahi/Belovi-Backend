@@ -33,24 +33,24 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Product = exports.SHOP_CATEGORIES = void 0;
+exports.Product = exports.MAX_FEATURE = exports.MAX_DESCRIPTION = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const Category_1 = require("./Category");
 /**
- * The five fixed categories, always offered. They drive the storefront's Shop
- * menu and cannot be created, renamed or deleted from anywhere in the admin.
+ * The house limit on the two free-text fields the product page renders.
  *
- * Mirrored by `SHOP_CATEGORIES` in the admin (products/_components/types.ts) and
- * the storefront (lib/categories.ts) — `check-categories.mjs` asserts the three
- * copies agree.
+ * 200 characters is roughly two lines of the PDP's 480px copy column, which is
+ * what the design allows before the description starts pushing the buy button
+ * off a laptop screen. Applied per FEATURE, not across the list — a piece may
+ * carry several, each its own short line.
+ *
+ * This is the gate. The admin stops typing at the same number and the storefront
+ * lays out for it, but a direct POST reaches here, and `runValidators` on update
+ * means an edit is checked too. Mirrored by MAX_DESCRIPTION / MAX_FEATURE in the
+ * admin (products/_components/types.ts).
  */
-exports.SHOP_CATEGORIES = [
-    'Luxury Furniture',
-    'Positioning',
-    'Wellness',
-    'Accessories',
-    'All Products',
-];
+exports.MAX_DESCRIPTION = 200;
+exports.MAX_FEATURE = 200;
 const specSchema = new mongoose_1.Schema({
     label: { type: String, required: true, trim: true },
     value: { type: String, required: true, trim: true },
@@ -66,15 +66,17 @@ const variantSchema = new mongoose_1.Schema({
 const productSchema = new mongoose_1.Schema({
     name: { type: String, required: true, trim: true },
     /**
-     * Either one of the five fixed categories, or one the studio created in
-     * Category Management. Both appear in the admin's Product Details dropdown,
-     * so both are accepted here — and nothing else is.
+     * A category the studio created in Category Management, and nothing else —
+     * exactly what the admin's dropdown offers. This is the real gate, enforced
+     * on create and on update (`runValidators`), so a direct POST can't bypass
+     * that dropdown.
      *
-     * This is the real gate, enforced on create and on update (`runValidators`),
-     * so a direct POST can't bypass the dropdown. The fixed names are checked
-     * first, which keeps the common case off the database entirely.
+     * There is no fixed list to check first any more, so this always asks the
+     * database. That is the point: the categories a piece can carry and the
+     * categories the storefront links to are now literally the same rows, so a
+     * piece cannot be filed somewhere no shopper can reach.
      *
-     * Existence, not ACTIVE: deactivating a studio category must not make every
+     * Existence, not ACTIVE: switching a category off must not make every
      * product already filed under it unsaveable. The dropdown offers active ones.
      */
     category: {
@@ -82,12 +84,15 @@ const productSchema = new mongoose_1.Schema({
         required: true,
         trim: true,
         validate: {
-            validator: async (name) => exports.SHOP_CATEGORIES.includes(name) ||
-                (await Category_1.Category.exists({ name })) !== null,
-            message: '"{VALUE}" is not a fixed category or one of the studio\'s categories.',
+            validator: async (name) => (await Category_1.Category.exists({ name })) !== null,
+            message: '"{VALUE}" is not one of the studio\'s categories.',
         },
     },
-    description: { type: String },
+    description: {
+        type: String,
+        trim: true,
+        maxlength: [exports.MAX_DESCRIPTION, `The description cannot exceed ${exports.MAX_DESCRIPTION} characters.`],
+    },
     variants: [variantSchema],
     starRating: { type: Number, default: 0, min: 0, max: 5 },
     reviewsCount: { type: Number, default: 0 },
@@ -108,7 +113,13 @@ const productSchema = new mongoose_1.Schema({
     dimensions: { type: String, trim: true },
     materials: [{ type: String }],
     warranty: { type: String, trim: true },
-    features: [{ type: String }],
+    features: [
+        {
+            type: String,
+            trim: true,
+            maxlength: [exports.MAX_FEATURE, `A feature cannot exceed ${exports.MAX_FEATURE} characters.`],
+        },
+    ],
     specifications: { type: [specSchema], default: undefined },
     careInstructions: { type: String, trim: true },
     shippingReturns: { type: String, trim: true },
