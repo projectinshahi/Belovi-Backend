@@ -9,6 +9,8 @@ const authMiddleware_1 = require("../middlewares/authMiddleware");
 const uploadMiddleware_1 = require("../middlewares/uploadMiddleware");
 const router = express_1.default.Router();
 router.get('/', featuredCollectionController_1.getFeaturedCollection);
-router.put('/', authMiddleware_1.protect, (0, authMiddleware_1.authorize)('admin'), uploadMiddleware_1.upload.fields([{ name: 'imageFiles', maxCount: 5 }]), featuredCollectionController_1.updateFeaturedCollection);
+// `any()` rather than a fixed field list: card photographs arrive as repeated
+// `cardImages` entries whose count is however many cards the studio added.
+router.put('/', authMiddleware_1.protect, (0, authMiddleware_1.authorize)('admin'), uploadMiddleware_1.upload.any(), featuredCollectionController_1.updateFeaturedCollection);
 exports.default = router;
 //# sourceMappingURL=featuredCollectionRoutes.js.map

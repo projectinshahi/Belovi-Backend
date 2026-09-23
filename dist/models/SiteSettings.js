@@ -38,7 +38,7 @@ exports.getOrCreateSiteSettings = getOrCreateSiteSettings;
 const mongoose_1 = __importStar(require("mongoose"));
 const DEFAULTS = {
     whatsappNumber: '917736830303',
-    contactEmail: 'care@belovi.in',
+    contactEmail: 'belovi2026@gmail.com',
     contactPhone: '',
     addressLine: '',
     instagramUrl: 'https://www.instagram.com/belovi.in/',

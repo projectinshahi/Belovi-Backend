@@ -33,18 +33,15 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Category = void 0;
+exports.Video = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
-const categorySchema = new mongoose_1.Schema({
-    /**
-     * `unique` is what actually stops two rows of the same name racing in past
-     * the controller's check; the controller's is for the message, this is for
-     * the guarantee. Two documents with one name would render a duplicate pill
-     * and split one filter between them.
-     */
-    name: { type: String, required: true, trim: true, unique: true },
-    image: { type: String, required: true },
-    status: { type: String, default: 'ACTIVE' },
+const videoSchema = new mongoose_1.Schema({
+    name: { type: String, required: true, trim: true, maxlength: 120 },
+    url: { type: String, required: true, trim: true },
+    youtubeId: { type: String, required: true, match: /^[\w-]{11}$/ },
+    productName: { type: String, trim: true, maxlength: 120, default: null },
+    actualPrice: { type: Number, min: 0, default: null },
+    offerPrice: { type: Number, min: 0, default: null },
 }, { timestamps: true });
-exports.Category = mongoose_1.default.model('Category', categorySchema);
-//# sourceMappingURL=Category.js.map
+exports.Video = mongoose_1.default.model('Video', videoSchema);
+//# sourceMappingURL=Video.js.map

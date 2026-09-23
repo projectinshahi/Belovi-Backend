@@ -65,7 +65,10 @@ exports.schemas = {
     createProduct: zod_1.z.object({
         body: zod_1.z.object({
             name: zod_1.z.string().min(1, 'Product name is required').max(200),
-            description: zod_1.z.string().min(10, 'Description must be at least 10 characters').max(5000),
+            description: zod_1.z
+                .string()
+                .min(10, 'Description must be at least 10 characters')
+                .max(200, 'Description cannot exceed 200 characters'),
             price: zod_1.z.number().positive('Price must be positive').or(zod_1.z.string().transform(Number)),
             category: zod_1.z.string().min(1, 'Category is required'),
             stock: zod_1.z.number().int().nonnegative('Stock cannot be negative').or(zod_1.z.string().transform(Number)),
@@ -78,7 +81,7 @@ exports.schemas = {
         }),
         body: zod_1.z.object({
             name: zod_1.z.string().min(1).max(200).optional(),
-            description: zod_1.z.string().min(10).max(5000).optional(),
+            description: zod_1.z.string().min(10).max(200).optional(),
             price: zod_1.z.number().positive().or(zod_1.z.string().transform(Number)).optional(),
             category: zod_1.z.string().optional(),
             stock: zod_1.z.number().int().nonnegative().or(zod_1.z.string().transform(Number)).optional(),
