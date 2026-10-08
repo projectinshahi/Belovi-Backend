@@ -51,6 +51,7 @@ const OrderSchema: Schema = new Schema(
     },
     subtotal: { type: Number, required: true },
     discount: { type: Number, default: 0 },
+    // Shipping is no longer charged; kept so past orders that paid it still add up.
     shippingFee: { type: Number, default: 0 },
     total: { type: Number, required: true },
     paymentMethod: { type: String, required: true },
