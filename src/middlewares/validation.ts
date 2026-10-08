@@ -118,7 +118,6 @@ export const schemas = {
       }),
       subtotal: z.number().positive(),
       discount: z.number().nonnegative(),
-      shippingFee: z.number().nonnegative(),
       total: z.number().positive(),
     }),
   }),

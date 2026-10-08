@@ -8,9 +8,17 @@ import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 dotenv.config();
 
+// No fallback credentials: a missing key must stop the server at boot, not
+// silently switch checkout into a mock mode that places unpaid orders.
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+  throw new Error('RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be set in the backend environment.');
+}
+
 const razorpayInstance = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'dummy_key_id',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'dummy_key_secret',
+  key_id: RAZORPAY_KEY_ID,
+  key_secret: RAZORPAY_KEY_SECRET,
 });
 
 // Sends the order confirmation email. Shared by both the online (Razorpay) and COD flows.
@@ -84,10 +92,12 @@ const sendOrderConfirmationEmail = async (user: any, order: any) => {
                 <td style="padding-bottom: 10px; color: #10b981; font-weight: bold; font-size: 14px; text-align: right;">-₹${order.discount}</td>
               </tr>
               ` : ''}
+              ${order.shippingFee > 0 ? `
               <tr>
                 <td style="padding-bottom: 15px; color: #6b7280; font-size: 14px;">Shipping:</td>
-                <td style="padding-bottom: 15px; color: #111827; font-weight: bold; font-size: 14px; text-align: right;">${order.shippingFee > 0 ? `₹${order.shippingFee}` : 'Free'}</td>
+                <td style="padding-bottom: 15px; color: #111827; font-weight: bold; font-size: 14px; text-align: right;">₹${order.shippingFee}</td>
               </tr>
+              ` : ''}
               <tr>
                 <td style="padding-top: 15px; border-top: 1px solid #eaeaea; color: #111827; font-weight: bold; font-size: 16px;">Total:</td>
                 <td style="padding-top: 15px; border-top: 1px solid #eaeaea; color: #111827; font-weight: bold; font-size: 18px; text-align: right;">₹${order.total}</td>
@@ -124,33 +134,23 @@ export const createOrder = async (req: Request, res: Response) => {
   try {
     const { total } = req.body;
 
-    let razorpayOrder;
-    let isMock = false;
-
     // Razorpay requires minimum ₹1 (100 paise)
-    if (!process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID === 'dummy_key_id' || total < 1) {
-      razorpayOrder = {
-        id: `mock_order_${Date.now()}`,
-        amount: Math.round(total * 100),
-        currency: 'INR'
-      };
-      isMock = true;
-    } else {
-      const options = {
-        amount: Math.round(total * 100),
-        currency: "INR",
-        receipt: `receipt_order_${Date.now()}`
-      };
-      razorpayOrder = await razorpayInstance.orders.create(options);
+    if (!(total >= 1)) {
+      return res.status(400).json({ success: false, message: 'Order total must be at least ₹1.' });
     }
+
+    const razorpayOrder = await razorpayInstance.orders.create({
+      amount: Math.round(total * 100),
+      currency: "INR",
+      receipt: `receipt_order_${Date.now()}`
+    });
 
     // No DB save here — order saved only after payment verified
     res.status(200).json({
       success: true,
       data: {
         razorpayOrder,
-        isMock,
-        key_id: process.env.RAZORPAY_KEY_ID // Return the key used to generate the order to prevent mismatch
+        key_id: RAZORPAY_KEY_ID // Public key id only — the secret never leaves the server
       }
     });
 
@@ -171,7 +171,6 @@ export const verifyPayment = async (req: Request, res: Response) => {
       shippingAddress,
       subtotal,
       discount,
-      shippingFee,
       total,
       paymentMethod,
       advanceAmount,
@@ -181,18 +180,12 @@ export const verifyPayment = async (req: Request, res: Response) => {
     // 'cod' means only the 10% advance was paid online; the balance is due on delivery.
     const isCod = paymentMethod === 'cod';
 
-    let paymentVerified = false;
-
-    if (razorpay_payment_id === 'mock_payment') {
-      paymentVerified = true;
-    } else {
-      const sign = razorpay_order_id + "|" + razorpay_payment_id;
-      const expectedSign = crypto
-        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || 'dummy_key_secret')
-        .update(sign.toString())
-        .digest("hex");
-      paymentVerified = razorpay_signature === expectedSign;
-    }
+    const sign = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSign = crypto
+      .createHmac("sha256", RAZORPAY_KEY_SECRET)
+      .update(sign.toString())
+      .digest("hex");
+    const paymentVerified = razorpay_signature === expectedSign;
 
     if (paymentVerified) {
       // Payment confirmed — 
@@ -202,7 +195,6 @@ export const verifyPayment = async (req: Request, res: Response) => {
         shippingAddress,
         subtotal,
         discount,
-        shippingFee,
         total,
         paymentMethod: isCod ? 'cod' : 'razorpay',
         // COD advance is paid, but the full amount isn't settled until the balance is collected.
@@ -212,7 +204,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
         orderStatus: 'processing',
         razorpayOrderId: razorpay_order_id,
         razorpayPaymentId: razorpay_payment_id,
-        razorpaySignature: razorpay_payment_id === 'mock_payment' ? 'mock_signature' : razorpay_signature,
+        razorpaySignature: razorpay_signature,
       });
 
       await newOrder.save();
@@ -391,10 +383,12 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
                       <td style="padding-bottom: 10px; color: #10b981; font-weight: bold; font-size: 14px; text-align: right;">-₹${order.discount}</td>
                     </tr>
                     ` : ''}
+                    ${order.shippingFee > 0 ? `
                     <tr>
                       <td style="padding-bottom: 15px; color: #6b7280; font-size: 14px;">Shipping:</td>
-                      <td style="padding-bottom: 15px; color: #111827; font-weight: bold; font-size: 14px; text-align: right;">${order.shippingFee > 0 ? `₹${order.shippingFee}` : 'Free'}</td>
+                      <td style="padding-bottom: 15px; color: #111827; font-weight: bold; font-size: 14px; text-align: right;">₹${order.shippingFee}</td>
                     </tr>
+                    ` : ''}
                     <tr>
                       <td style="padding-top: 15px; border-top: 1px solid #eaeaea; color: #111827; font-weight: bold; font-size: 16px;">Total:</td>
                       <td style="padding-top: 15px; border-top: 1px solid #eaeaea; color: #111827; font-weight: bold; font-size: 18px; text-align: right;">₹${order.total}</td>
