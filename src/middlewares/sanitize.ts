@@ -25,7 +25,10 @@ export const sanitizeStrings = (req: Request, res: Response, next: NextFunction)
     if (obj && typeof obj === 'object') {
       const sanitized: any = {};
       for (const key in obj) {
-        sanitized[key] = sanitize(obj[key]);
+        // Passwords are hashed, never rendered, so there is nothing to protect —
+        // and stripping "onX=" or "javascript:" from one silently changed the
+        // password the customer chose.
+        sanitized[key] = /password/i.test(key) ? obj[key] : sanitize(obj[key]);
       }
       return sanitized;
     }

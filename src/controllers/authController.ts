@@ -58,7 +58,7 @@ const findByEmail = (email: string) =>
 // address can only ever end up on an account if its owner read the message.
 
 /** How long a code is accepted. */
-const OTP_TTL_MS = 10 * 60 * 1000;
+const OTP_TTL_MS = 5 * 60 * 1000;
 /** Wrong codes tolerated before the pending registration is discarded. */
 const MAX_OTP_ATTEMPTS = 5;
 /** Codes issued per pending registration, the first included. */
@@ -69,44 +69,63 @@ const RESEND_COOLDOWN_MS = 60 * 1000;
 /** Six digits from a CSPRNG — `Math.random` is predictable and unfit here. */
 const generateOtp = () => crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
 
-const otpEmailHtml = (name: string, otp: string) => `
-  <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eaeaea; border-radius: 10px; overflow: hidden; background-color: #ffffff;">
-    <div style="background-color: #111827; padding: 30px; text-align: center;">
-      <h1 style="color: #ffffff; margin: 0; font-size: 24px; letter-spacing: 2px; text-transform: uppercase;">BELOVI</h1>
-    </div>
-    <div style="padding: 40px 30px;">
-      <h2 style="color: #111827; font-size: 20px; margin-top: 0;">Verify your email</h2>
-      <p style="color: #4b5563; font-size: 16px; line-height: 1.6;">
-        Hello ${name},<br><br>
-        Use this code to finish creating your BELOVI account.
-      </p>
-      <div style="margin: 32px 0; text-align: center;">
-        <span style="display: inline-block; font-size: 34px; letter-spacing: 12px; font-weight: bold; color: #111827; background: #f9fafb; border: 1px solid #eaeaea; border-radius: 8px; padding: 18px 26px 18px 38px;">${otp}</span>
-      </div>
-      <p style="color: #6b7280; font-size: 14px; line-height: 1.6;">
-        The code expires in 10 minutes. If you didn't ask to create an account,
-        you can ignore this email — nothing has been created.
-      </p>
-    </div>
-    <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
-      <p style="color: #9ca3af; font-size: 13px; margin: 0;">© ${new Date().getFullYear()} BELOVI. All rights reserved.</p>
-    </div>
+const OTP_TTL_MINUTES = OTP_TTL_MS / 60_000;
+
+/*
+ * The verification email carries nothing the registrant typed — no name. It
+ * goes to whatever address they enter, so any text from the form would let
+ * anyone use this endpoint to put their own words, under the Belovi name, into
+ * a stranger's inbox: a standard way registration forms get abused for spam,
+ * and it costs the sender's reputation with Gmail. The code is digits only.
+ *
+ * Kept lean on purpose: one short message, no links, no images, a plain-text
+ * part saying the same thing, and the code readable in the inbox preview.
+ */
+const OTP_SUBJECT = 'Your Belovi verification code';
+
+const otpEmailText = (otp: string) =>
+  `Your Belovi verification code is ${otp}\n\n` +
+  `Enter this code on the Belovi website to verify your email address and finish creating your account. ` +
+  `It expires in ${OTP_TTL_MINUTES} minutes.\n\n` +
+  `If you didn't try to create a Belovi account, you can ignore this email. No account has been created.\n\n` +
+  `Belovi`;
+
+const otpEmailHtml = (otp: string) => `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${OTP_SUBJECT}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f5f5;">
+<div style="display:none;max-height:0;overflow:hidden;">Your Belovi verification code is ${otp}. It expires in ${OTP_TTL_MINUTES} minutes.</div>
+<div style="max-width:480px;margin:0 auto;padding:32px 16px;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;">
+  <div style="background-color:#ffffff;border:1px solid #e0e0e0;border-radius:8px;padding:32px 28px;">
+    <p style="margin:0 0 28px;font-size:18px;font-weight:bold;letter-spacing:5px;">BEL<span style="color:#d32f2f;">O</span>VI</p>
+    <h1 style="margin:0 0 12px;font-size:20px;line-height:1.3;font-weight:bold;">Verify your email address</h1>
+    <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#4a4a4a;">Enter this code on the Belovi website to finish creating your account.</p>
+    <p style="margin:0 0 24px;font-size:32px;line-height:1.2;font-weight:bold;letter-spacing:8px;font-family:'Courier New',Courier,monospace;">${otp}</p>
+    <p style="margin:0 0 8px;font-size:14px;line-height:1.6;color:#4a4a4a;">This code expires in ${OTP_TTL_MINUTES} minutes.</p>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#757575;">If you didn't try to create a Belovi account, you can ignore this email. No account has been created.</p>
   </div>
-`;
+  <p style="margin:16px 0 0;font-size:12px;color:#9e9e9e;text-align:center;">Belovi</p>
+</div>
+</body>
+</html>`;
 
 /**
  * Mail a code, and report honestly whether it left the building.
  *
- * `sendEmail` is a deliberate no-op when SendGrid isn't configured — right for
+ * `sendEmail` is a deliberate no-op when email isn't configured — right for
  * order receipts, wrong here: the customer would be sent to a verification
  * screen to wait for a message that was never going to arrive. So a skipped or
  * failed send is an error for this flow, and the pending record is not kept.
  */
-const deliverOtp = async (email: string, name: string, otp: string): Promise<boolean> => {
+const deliverOtp = async (email: string, otp: string, tag: string): Promise<boolean> => {
   if (!isEmailConfigured()) {
     /**
      * Local escape hatch: print the code to the server console so registration
-     * can be exercised before SendGrid credentials exist.
+     * can be exercised before email credentials exist.
      *
      * Two conditions, deliberately. A single `NODE_ENV !== 'production'` check
      * would switch this on by itself on any deploy that forgot to set NODE_ENV
@@ -116,23 +135,53 @@ const deliverOtp = async (email: string, name: string, otp: string): Promise<boo
      */
     if (ENV.NODE_ENV !== 'production' && process.env.OTP_CONSOLE_FALLBACK === 'true') {
       logger.warn(
-        `🔑 DEV ONLY — email is not configured. Verification code for ${email}: ${otp}`
+        `[${tag}] 🔑 DEV ONLY — email is not configured. Verification code for ${email}: ${otp}`
       );
       return true;
     }
+    const missing = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].filter((k) => !process.env[k]);
     logger.error(
-      'Registration OTP requested but email delivery is not configured. ' +
-        'Set SENDGRID_API_KEY and SENDGRID_FROM_EMAIL (a verified sender), ' +
+      `[${tag}] Registration OTP requested but email delivery is not configured ` +
+        `(missing: ${missing.join(', ')}). Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and SMTP_FROM, ` +
         'or set OTP_CONSOLE_FALLBACK=true for local development.'
     );
     return false;
   }
   const result = await sendEmail({
     email,
-    subject: 'Your BELOVI verification code',
-    html: otpEmailHtml(name, otp),
+    subject: OTP_SUBJECT,
+    message: otpEmailText(otp),
+    html: otpEmailHtml(otp),
+    logTag: tag,
   });
-  return Boolean(result?.success) && !result?.skipped;
+  const sent = Boolean(result?.success) && !result?.skipped;
+  if (!sent) logger.warn(`[${tag}] verification email not sent (${result?.error || 'unknown'}); answered 503`);
+  return sent;
+};
+
+/**
+ * One id per registration request: on every log line it writes and in the
+ * `X-Request-Id` response header, so a failure a customer reports can be found
+ * in the log. A client-supplied id is reused only if it's a plain token — it
+ * goes into the log, so it must not carry arbitrary text.
+ */
+const requestTag = (req: Request, res: Response, stage: string) => {
+  const supplied = req.get('x-request-id');
+  const id = supplied && /^[\w-]{8,64}$/.test(supplied) ? supplied : crypto.randomUUID();
+  res.setHeader('X-Request-Id', id);
+  return `${stage} ${id}`;
+};
+
+/** The 429 for a send the per-address limits refused, naming which limit. */
+const refuseSend = (res: Response, pending: { lastSentAt: Date } | null) => {
+  const waitMs = pending ? pending.lastSentAt.getTime() + RESEND_COOLDOWN_MS - Date.now() : 0;
+  return errorResponse(
+    res,
+    429,
+    waitMs > 0
+      ? `Please wait ${Math.ceil(waitMs / 1000)}s before requesting another code.`
+      : 'Too many codes requested. Please start again in a little while.'
+  );
 };
 
 /** What the client needs to drive its countdown, and nothing else. */
@@ -149,6 +198,7 @@ const pendingPayload = (pending: { email: string; otpExpiresAt: Date; lastSentAt
  * discarded with the request.
  */
 export const startRegistration = asyncHandler(async (req: Request, res: Response) => {
+  const tag = requestTag(req, res, 'register');
   const { name, email, password } = req.body;
   const normalized = normalizeEmail(email);
 
@@ -164,24 +214,44 @@ export const startRegistration = asyncHandler(async (req: Request, res: Response
   const otp = generateOtp();
   const now = new Date();
 
-  // Re-registering the same address before verifying replaces the record, so a
-  // stale code can never be used and attempts don't accumulate across tries.
-  const pending = await PendingRegistration.findOneAndUpdate(
-    { email: normalized },
-    {
-      email: normalized,
-      name: name.trim(),
-      passwordHash: await bcrypt.hash(password, 10),
-      otpHash: await bcrypt.hash(otp, 10),
-      otpExpiresAt: new Date(now.getTime() + OTP_TTL_MS),
-      attempts: 0,
-      resendCount: 1,
-      lastSentAt: now,
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
+  /*
+   * One atomic write, so the per-address limits hold even against parallel
+   * requests. It matches a record that may send again (cooldown over, under the
+   * send cap) or inserts one when none exists. A record that exists but may not
+   * send makes that insert collide with the unique email index — the E11000
+   * below, answered with how long to wait.
+   *
+   * Re-registering replaces the code, name and password and resets the attempt
+   * budget, so a stale code can never be used — but it keeps counting sends.
+   * It used to reset the count, which let /register bypass the resend limits.
+   */
+  let pending;
+  try {
+    pending = await PendingRegistration.findOneAndUpdate(
+      {
+        email: normalized,
+        lastSentAt: { $lte: new Date(now.getTime() - RESEND_COOLDOWN_MS) },
+        resendCount: { $lt: MAX_OTP_SENDS },
+      },
+      {
+        $set: {
+          name: name.trim(),
+          passwordHash: await bcrypt.hash(password, 10),
+          otpHash: await bcrypt.hash(otp, 10),
+          otpExpiresAt: new Date(now.getTime() + OTP_TTL_MS),
+          attempts: 0,
+          lastSentAt: now,
+        },
+        $inc: { resendCount: 1 },
+      },
+      { upsert: true, new: true }
+    );
+  } catch (error: any) {
+    if (error?.code !== 11000) throw error;
+    return refuseSend(res, await PendingRegistration.findOne({ email: normalized }));
+  }
 
-  if (!(await deliverOtp(normalized, pending.name, otp))) {
+  if (!(await deliverOtp(normalized, otp, tag))) {
     // Don't strand the customer on a verification screen for a code that was
     // never sent.
     await PendingRegistration.deleteOne({ _id: pending._id });
@@ -219,7 +289,14 @@ export const verifyRegistration = asyncHandler(async (req: Request, res: Respons
     return errorResponse(res, 410, 'That code has expired. Request a new one.');
   }
 
-  if (pending.attempts >= MAX_OTP_ATTEMPTS) {
+  // Claim one attempt atomically BEFORE comparing. Counting after the compare
+  // let parallel guesses all read the same count and slip past the limit.
+  const claimed = await PendingRegistration.findOneAndUpdate(
+    { _id: pending._id, attempts: { $lt: MAX_OTP_ATTEMPTS } },
+    { $inc: { attempts: 1 } },
+    { new: true }
+  );
+  if (!claimed) {
     await PendingRegistration.deleteOne({ _id: pending._id });
     return errorResponse(
       res,
@@ -228,10 +305,9 @@ export const verifyRegistration = asyncHandler(async (req: Request, res: Respons
     );
   }
 
-  if (!(await bcrypt.compare(otp, pending.otpHash))) {
-    pending.attempts += 1;
-    await pending.save();
-    const left = MAX_OTP_ATTEMPTS - pending.attempts;
+  if (!(await bcrypt.compare(otp, claimed.otpHash))) {
+    const left = MAX_OTP_ATTEMPTS - claimed.attempts;
+    if (left <= 0) await PendingRegistration.deleteOne({ _id: claimed._id });
     return errorResponse(
       res,
       400,
@@ -243,7 +319,7 @@ export const verifyRegistration = asyncHandler(async (req: Request, res: Respons
 
   // The address could have been claimed between starting and verifying.
   if (await findByEmail(normalized)) {
-    await PendingRegistration.deleteOne({ _id: pending._id });
+    await PendingRegistration.deleteOne({ _id: claimed._id });
     return errorResponse(
       res,
       409,
@@ -255,9 +331,9 @@ export const verifyRegistration = asyncHandler(async (req: Request, res: Respons
   // model's `pre('save')` hook a second time — `unmarkModified` keeps that hook
   // (the single place hashing happens for plaintext) from re-hashing a hash.
   const user = new User({
-    name: pending.name,
-    email: pending.email,
-    password: pending.passwordHash,
+    name: claimed.name,
+    email: claimed.email,
+    password: claimed.passwordHash,
     role: 'customer',
     isActive: true,
     isVerified: true, // the address is proven — that is the point of this flow
@@ -268,7 +344,7 @@ export const verifyRegistration = asyncHandler(async (req: Request, res: Respons
     await user.save();
   } catch (error: any) {
     if (error?.code === 11000) {
-      await PendingRegistration.deleteOne({ _id: pending._id });
+      await PendingRegistration.deleteOne({ _id: claimed._id });
       return errorResponse(
         res,
         409,
@@ -279,7 +355,7 @@ export const verifyRegistration = asyncHandler(async (req: Request, res: Respons
   }
 
   // Used once, then gone: the code cannot be replayed.
-  await PendingRegistration.deleteOne({ _id: pending._id });
+  await PendingRegistration.deleteOne({ _id: claimed._id });
 
   const token = generateToken(user._id.toString(), user.role);
   setSessionCookie(res, token);
@@ -289,41 +365,53 @@ export const verifyRegistration = asyncHandler(async (req: Request, res: Respons
 
 /** Step 2b — issue a fresh code for a registration already in progress. */
 export const resendRegistrationOtp = asyncHandler(async (req: Request, res: Response) => {
+  const tag = requestTag(req, res, 'register/resend');
   const { email } = req.body;
   const normalized = normalizeEmail(email);
 
-  const pending = await PendingRegistration.findOne({ email: normalized });
-  if (!pending) {
-    return errorResponse(res, 404, 'This verification has expired. Please start again.');
-  }
-
-  const waitMs = pending.lastSentAt.getTime() + RESEND_COOLDOWN_MS - Date.now();
-  if (waitMs > 0) {
-    return errorResponse(
-      res,
-      429,
-      `Please wait ${Math.ceil(waitMs / 1000)}s before requesting another code.`
-    );
-  }
-
-  if (pending.resendCount >= MAX_OTP_SENDS) {
-    return errorResponse(
-      res,
-      429,
-      'Too many codes requested. Please start again in a little while.'
-    );
-  }
-
   const otp = generateOtp();
-  pending.otpHash = await bcrypt.hash(otp, 10);
-  pending.otpExpiresAt = new Date(Date.now() + OTP_TTL_MS);
-  pending.lastSentAt = new Date();
-  pending.resendCount += 1;
-  // A new code resets the attempt budget — the old one is void either way.
-  pending.attempts = 0;
-  await pending.save();
+  const otpHash = await bcrypt.hash(otp, 10);
+  const now = new Date();
+  const otpExpiresAt = new Date(now.getTime() + OTP_TTL_MS);
 
-  if (!(await deliverOtp(normalized, pending.name, otp))) {
+  // Cooldown and cap checked in the same atomic write that issues the code, so
+  // two simultaneous resends can't both pass. Returns the record as it was
+  // BEFORE the update, so a failed send can be rolled back below.
+  const previous = await PendingRegistration.findOneAndUpdate(
+    {
+      email: normalized,
+      lastSentAt: { $lte: new Date(now.getTime() - RESEND_COOLDOWN_MS) },
+      resendCount: { $lt: MAX_OTP_SENDS },
+    },
+    // A new code resets the attempt budget — the old one is void either way.
+    { $set: { otpHash, otpExpiresAt, lastSentAt: now, attempts: 0 }, $inc: { resendCount: 1 } },
+    { new: false }
+  );
+
+  if (!previous) {
+    const pending = await PendingRegistration.findOne({ email: normalized });
+    if (!pending) {
+      return errorResponse(res, 404, 'This verification has expired. Please start again.');
+    }
+    return refuseSend(res, pending);
+  }
+
+  if (!(await deliverOtp(normalized, otp, tag))) {
+    // The new code never left. Put the old one and the counters back, so an
+    // earlier code the customer did receive still works and a retry isn't
+    // blocked by a cooldown for a send that failed.
+    await PendingRegistration.updateOne(
+      { _id: previous._id, otpHash },
+      {
+        $set: {
+          otpHash: previous.otpHash,
+          otpExpiresAt: previous.otpExpiresAt,
+          lastSentAt: previous.lastSentAt,
+          attempts: previous.attempts,
+          resendCount: previous.resendCount,
+        },
+      }
+    );
     return errorResponse(
       res,
       503,
@@ -331,7 +419,12 @@ export const resendRegistrationOtp = asyncHandler(async (req: Request, res: Resp
     );
   }
 
-  successResponse(res, 200, 'A new code is on its way', pendingPayload(pending));
+  successResponse(
+    res,
+    200,
+    'A new code is on its way',
+    pendingPayload({ email: normalized, otpExpiresAt, lastSentAt: now })
+  );
 });
 
 /**
@@ -357,6 +450,13 @@ export const signInCustomer = asyncHandler(async (req: Request, res: Response) =
 
   if (!user.isActive) {
     return errorResponse(res, 403, 'Your account has been deactivated');
+  }
+
+  // Email registration only ever creates verified accounts; this stops anything
+  // older or made another way from signing in with a password unverified.
+  // Checked after the password, so it reveals nothing to someone without it.
+  if (!user.isVerified) {
+    return errorResponse(res, 403, 'Please verify your email address before signing in.');
   }
 
   const token = generateToken(user._id.toString(), user.role);

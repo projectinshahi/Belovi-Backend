@@ -21,7 +21,9 @@ export const apiLimiter = rateLimit({
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // Limit each IP to 5 login attempts per windowMs
-  message: 'Too many login attempts from this IP, please try again after 15 minutes.',
+  // JSON in the API's own shape, so clients show this message instead of a
+  // generic failure (a bare string arrived as text/plain with no `message`).
+  message: { success: false, message: 'Too many attempts from this IP, please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Don't count successful requests
@@ -31,7 +33,7 @@ export const authLimiter = rateLimit({
 export const otpLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 3, // Limit each IP to 3 OTP requests per hour
-  message: 'Too many OTP requests. Please try again after 1 hour.',
+  message: { success: false, message: 'Too many verification codes requested. Please try again after 1 hour.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
