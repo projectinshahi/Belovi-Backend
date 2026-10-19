@@ -57,3 +57,75 @@
 {"level":"warn","message":"🔑 DEV ONLY — email is not configured. Verification code for marsh.dev01@gmail.com: 276419","service":"belovi-backend","timestamp":"2026-09-22 09:03:27"}
 {"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Confirmation - BELOVI\" to marshookali98@gmail.com","service":"belovi-backend","timestamp":"2026-09-22 16:01:06"}
 {"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Confirmation - BELOVI\" to marshookali98@gmail.com","service":"belovi-backend","timestamp":"2026-10-03 11:21:08"}
+{"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Confirmation - BELOVI\" to hrithikelayur12@gmail.com","service":"belovi-backend","timestamp":"2026-10-09 16:18:25"}
+{"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Confirmation - BELOVI\" to hrithikelayur12@gmail.com","service":"belovi-backend","timestamp":"2026-10-09 16:21:07"}
+{"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Shipped - BELOVI\" to hrithikelayur12@gmail.com","service":"belovi-backend","timestamp":"2026-10-09 16:22:42"}
+{"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Delivered - BELOVI\" to hrithikelayur12@gmail.com","service":"belovi-backend","timestamp":"2026-10-09 16:23:02"}
+{"level":"info","message":"📭 Email disabled (no SendGrid config). Skipping \"Order Shipped - BELOVI\" to hrithikelayur12@gmail.com","service":"belovi-backend","timestamp":"2026-10-09 16:23:17"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:01"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:01"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:01"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:01"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:01"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:01"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:08"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:08"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:08"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:12"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:50"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:52"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:52"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:14:52"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:15:06"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:15:08"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:15:08"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:15:08"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:15:39"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:15:41"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:15:56"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:15:59"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:15:59"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:15:59"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:16:05"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:16:05"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:16:05"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:16:05"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:16:05"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:16:05"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:16:05"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:16:05"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:16:05"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:16:05"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:17:37"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:17:39"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:17:39"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:17:39"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:17:39"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:17:39"}
+{"level":"warn","message":"CORS blocked request from origin: http://localhost:3002","service":"belovi-backend","timestamp":"2026-10-12 16:17:39"}
+{"level":"warn","message":"🔑 DEV ONLY — email is not configured. Verification code for shareefcv456@gmail.com: 261251","service":"belovi-backend","timestamp":"2026-10-16 14:32:23"}
+{"level":"error","message":"SMTP login check failed: ESOCKET self-signed certificate in certificate chain","service":"belovi-backend","timestamp":"2026-10-17 14:53:23"}
+{"level":"error","message":"SMTP send failed for shareefcv456@gmail.com: ESOCKET  self-signed certificate in certificate chain","service":"belovi-backend","timestamp":"2026-10-17 14:54:30"}
+{"level":"error","message":"SMTP send failed for shareefcv456@gmail.com: ESOCKET  self-signed certificate in certificate chain","service":"belovi-backend","timestamp":"2026-10-17 14:54:42"}
+{"level":"error","message":"SMTP send failed for shareefcv456@gmail.com: ESOCKET  self-signed certificate in certificate chain","service":"belovi-backend","timestamp":"2026-10-17 14:54:58"}
+{"level":"error","message":"SMTP login check failed: ESOCKET self-signed certificate in certificate chain","service":"belovi-backend","timestamp":"2026-10-17 17:12:46"}
+{"level":"error","message":"SMTP send failed for shareef456@gmail.com: ESOCKET  self-signed certificate in certificate chain","service":"belovi-backend","timestamp":"2026-10-17 17:13:53"}
+{"level":"error","message":"SMTP login check failed: ETIMEDOUT Connection timeout","service":"belovi-backend","timestamp":"2026-10-19 09:47:27"}
+{"level":"error","message":"SMTP send failed for batmanelayur@gmail.com: ETIMEDOUT  Connection timeout","service":"belovi-backend","timestamp":"2026-10-19 09:48:46"}
+{"level":"error","message":"SMTP login check failed: ETIMEDOUT Connection timeout","service":"belovi-backend","timestamp":"2026-10-19 09:56:49"}
+{"level":"error","message":"SMTP send failed for batmanelayur@gmail.com: ETIMEDOUT  Connection timeout","service":"belovi-backend","timestamp":"2026-10-19 09:57:21"}
+{"level":"error","message":"SMTP send failed for batmanelayur@gmail.com: ETIMEDOUT  Connection timeout","service":"belovi-backend","timestamp":"2026-10-19 10:05:57"}
+{"level":"error","message":"SMTP send failed for belovi2026+diagnostic@gmail.com: ETIMEDOUT  Connection timeout","service":"belovi-backend","timestamp":"2026-10-19 10:09:15"}
+{"level":"error","message":"SMTP login check failed: ESOCKET self-signed certificate in certificate chain","service":"belovi-backend","timestamp":"2026-10-19 10:13:35"}
+{"level":"error","message":"SMTP login check failed — smtp.gmail.com:587 (STARTTLS required), user be…@gmail.com, from belovi2026@gmail.com, password set: ESOCKET self-signed certificate in certificate chain — TLS certificate not trusted: something between this machine and the SMTP server is intercepting TLS (antivirus mail/HTTPS scanning, a proxy)","service":"belovi-backend","timestamp":"2026-10-19 10:13:50"}
+{"level":"error","message":"SMTP login check failed — smtp.gmail.com:587 (STARTTLS required), user be…@gmail.com, from belovi2026@gmail.com, password set: ESOCKET self-signed certificate in certificate chain — TLS certificate not trusted: something between this machine and the SMTP server is intercepting TLS (antivirus mail/HTTPS scanning, a proxy)","service":"belovi-backend","timestamp":"2026-10-19 10:14:01"}
+{"level":"error","message":"SMTP login check failed — smtp.gmail.com:587 (STARTTLS required), user be…@gmail.com, from belovi2026@gmail.com, password set: ESOCKET self-signed certificate in certificate chain — TLS certificate not trusted: something between this machine and the SMTP server is intercepting TLS (antivirus mail/HTTPS scanning, a proxy)","service":"belovi-backend","timestamp":"2026-10-19 10:14:28"}
+{"level":"error","message":"SMTP login check failed — smtp.gmail.com:587 (STARTTLS required), user be…@gmail.com, from belovi2026@gmail.com, password set: ESOCKET self-signed certificate in certificate chain — TLS certificate not trusted: something between this machine and the SMTP server is intercepting TLS (antivirus mail/HTTPS scanning, a proxy)","service":"belovi-backend","timestamp":"2026-10-19 10:15:10"}
+{"level":"error","message":"SMTP login check failed — smtp.gmail.com:587 (STARTTLS required), user be…@gmail.com, from belovi2026@gmail.com, password set: ESOCKET self-signed certificate in certificate chain — TLS certificate not trusted: something between this machine and the SMTP server is intercepting TLS (antivirus mail/HTTPS scanning, a proxy)","service":"belovi-backend","timestamp":"2026-10-19 10:15:26"}
+{"level":"error","message":"SMTP login check failed — smtp.gmail.com:587 (STARTTLS required), user be…@gmail.com, from belovi2026@gmail.com, password set: ESOCKET self-signed certificate in certificate chain — TLS certificate not trusted: something between this machine and the SMTP server is intercepting TLS (antivirus mail/HTTPS scanning, a proxy)","service":"belovi-backend","timestamp":"2026-10-19 10:23:52"}
+{"level":"info","message":"✉️  SMTP email delivery ready — smtp.gmail.com:587 (STARTTLS required), user be…@gmail.com, from belovi2026@gmail.com, password set","service":"belovi-backend","timestamp":"2026-10-19 10:28:13"}
+{"level":"info","message":"[register 2feddcaa-86a0-45f4-88ea-fc21b0dbcffd] ✉️  SMTP accepted \"Your BELOVI verification code\" for batmanelayur@gmail.com in 5580ms (250 2.0.0 OK  1792385911 5a478bee46e88-3607ee0cc23sm33418293eec.2 - gsmtp)","service":"belovi-backend","timestamp":"2026-10-19 10:28:25"}
+{"level":"info","message":"[register/resend 10905100-9eb3-46b7-884a-d62f5699fff5] ✉️  SMTP accepted \"Your BELOVI verification code\" for batmanelayur@gmail.com in 3834ms (250 2.0.0 OK  1792385998 a92af1059eb24-1831919fc14sm31684382c88.6 - gsmtp)","service":"belovi-backend","timestamp":"2026-10-19 10:29:53"}
+{"level":"info","message":"✉️  SMTP email delivery ready — smtp.gmail.com:587 (STARTTLS required), user be…@gmail.com, from belovi2026@gmail.com, password set","service":"belovi-backend","timestamp":"2026-10-19 10:32:41"}
+{"level":"info","message":"✉️  SMTP email delivery ready — smtp.gmail.com:587 (STARTTLS required), user be…@gmail.com, from belovi2026@gmail.com, password set","service":"belovi-backend","timestamp":"2026-10-19 10:37:07"}
+{"level":"info","message":"[register cce88532-1c16-41d8-bb43-6a33aad52ce4] ✉️  SMTP accepted \"Your Belovi verification code\" for batmanelayur@gmail.com in 3543ms (250 2.0.0 OK  1792386469 5a478bee46e88-3607ee0e5e6sm29236406eec.1 - gsmtp)","service":"belovi-backend","timestamp":"2026-10-19 10:37:44"}
