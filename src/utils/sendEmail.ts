@@ -1,5 +1,6 @@
 import net from 'net';
 import nodemailer, { type Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 import logger from './logger';
 
 // Email configuration interface
@@ -32,14 +33,51 @@ const smtpConfig = () => {
   return { host, port, user, pass, from: process.env.SMTP_FROM?.trim() || user };
 };
 
+/**
+ * Resend: an API key and a sender address on a domain verified in Resend.
+ * Takes precedence over SMTP and SendGrid when present — exactly one provider
+ * sends each message.
+ */
+const resendConfig = () => {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const from = process.env.FROM_EMAIL?.trim();
+  return apiKey && from ? { apiKey, from } : null;
+};
+
 const sendGridConfigured = () =>
   Boolean(process.env.SENDGRID_API_KEY?.trim() && process.env.SENDGRID_FROM_EMAIL?.trim());
 
 /**
- * Whether outbound email is configured: SMTP first, else SendGrid. When neither
- * is, sending is a safe no-op so order flows behave as before.
+ * Whether outbound email is configured: Resend, else SMTP, else SendGrid. When
+ * none is, sending is a safe no-op so order flows behave as before.
  */
-export const isEmailConfigured = (): boolean => Boolean(smtpConfig()) || sendGridConfigured();
+export const isEmailConfigured = (): boolean =>
+  Boolean(resendConfig()) || Boolean(smtpConfig()) || sendGridConfigured();
+
+let resendClient: Resend | null = null;
+const getResend = () => {
+  const c = resendConfig();
+  if (!c) return null;
+  resendClient ??= new Resend(c.apiKey);
+  return resendClient;
+};
+
+/** Plain-language pointer for a Resend refusal, logged next to the raw error. */
+const resendHint = (error: { name?: string; message?: string; statusCode?: number | null }) => {
+  const name = error.name || '';
+  if (/api_key/.test(name)) return 'check RESEND_API_KEY (missing, invalid, or not allowed to send)';
+  // Resend's shared test sender (onboarding@resend.dev) delivers only to the
+  // Resend account's own address; every other recipient gets this refusal.
+  if (/only send testing emails to your own email address/i.test(error.message || ''))
+    return "FROM_EMAIL is Resend's test sender, which only delivers to the Resend account's own address: to email customers, verify your domain in Resend and set FROM_EMAIL to an address on it";
+  if (/domain.*not verified|verify a domain|not verified/i.test(error.message || ''))
+    return `FROM_EMAIL's domain is not verified in Resend: add the DNS records Resend lists for it, then verify (Resend → Domains)`;
+  if (name === 'rate_limit_exceeded' || error.statusCode === 429) return 'Resend rate limit reached; the customer can retry after the cooldown';
+  if (name === 'daily_quota_exceeded' || name === 'monthly_quota_exceeded') return 'Resend sending quota used up for this plan';
+  if (name === 'application_error' && error.statusCode == null) return 'could not reach api.resend.com: no network or a proxy/firewall in the way';
+  if (name === 'validation_error') return 'Resend rejected the message fields (sender, recipient or content)';
+  return 'unexpected Resend error';
+};
 
 /**
  * Open the SMTP socket through the operating system's resolver.
@@ -124,7 +162,8 @@ const getTransporter = (): Transporter | null => {
 const fromName = () => (process.env.FROM_NAME || 'Belovi').trim();
 
 /**
- * Send a transactional email over SMTP (preferred) or the SendGrid HTTP API.
+ * Send a transactional email through Resend (preferred), SMTP, or the SendGrid
+ * HTTP API — whichever is configured first, and only that one.
  *
  * - If email is not configured, this is a safe no-op that logs and returns
  *   `{ skipped: true }` — preserving the previous behaviour.
@@ -142,6 +181,33 @@ export const sendEmail = async (options: EmailOptions): Promise<any> => {
   }
 
   const tag = options.logTag ? `[${options.logTag}] ` : '';
+
+  const resend = getResend();
+  if (resend) {
+    const started = Date.now();
+    // The SDK never throws: refusals and network failures both come back as
+    // `error`. `data.id` is Resend's id for the accepted message.
+    const content = options.html
+      ? { html: options.html, ...(options.message ? { text: options.message } : {}) }
+      : { text: options.message ?? '' };
+    const { data, error } = await resend.emails.send({
+      from: `${fromName()} <${resendConfig()!.from}>`,
+      to: [options.email],
+      subject: options.subject,
+      ...content,
+    });
+    if (error || !data?.id) {
+      const e = error ?? { name: 'no_id', message: 'Resend returned no message id' };
+      logger.error(
+        `${tag}Resend send failed for ${options.email} after ${Date.now() - started}ms: ` +
+          `${e.name}${(e as any).statusCode ? ` ${(e as any).statusCode}` : ''} ${e.message} — ${resendHint(e as any)}`
+      );
+      return { success: false, provider: 'resend', error: e.name };
+    }
+    logger.info(`${tag}✉️  Resend accepted "${options.subject}" for ${options.email} in ${Date.now() - started}ms (id ${data.id})`);
+    return { success: true, provider: 'resend', messageId: data.id };
+  }
+
   const smtp = getTransporter();
   if (smtp) {
     const started = Date.now();
@@ -169,7 +235,7 @@ export const sendEmail = async (options: EmailOptions): Promise<any> => {
   }
 
   if (!sendGridConfigured()) {
-    logger.info(`📭 Email disabled (no SMTP or SendGrid config). Skipping "${options.subject}" to ${options.email}`);
+    logger.info(`📭 Email disabled (no Resend, SMTP or SendGrid config). Skipping "${options.subject}" to ${options.email}`);
     return { success: true, provider: 'disabled', skipped: true };
   }
 
@@ -219,6 +285,40 @@ export const sendEmail = async (options: EmailOptions): Promise<any> => {
  * stop the shop from serving; registration reports it as 503 instead.
  */
 export const verifyEmailConnection = async (): Promise<boolean> => {
+  if (Boolean(process.env.RESEND_API_KEY?.trim()) !== Boolean(process.env.FROM_EMAIL?.trim())) {
+    logger.error(
+      `Resend is partly configured — missing ${process.env.RESEND_API_KEY?.trim() ? 'FROM_EMAIL' : 'RESEND_API_KEY'}. Resend email is disabled.`
+    );
+  }
+
+  const resend = getResend();
+  if (resend) {
+    const from = resendConfig()!.from;
+    const domain = from.split('@')[1]?.toLowerCase();
+    const summary = `from ${fromName()} <${from}>, API key set`;
+    // Listing domains needs a full-access key. A send-only key (the safer
+    // choice) can't, and Resend then checks the domain on every send instead.
+    const { data, error } = await resend.domains.list();
+    if (error) {
+      if (error.name === 'restricted_api_key') {
+        logger.info(`✉️  Resend email configured — ${summary} (send-only key: domain verification is checked by Resend on each send)`);
+        return true;
+      }
+      logger.error(`Resend check failed — ${summary}: ${error.name} ${error.message} — ${resendHint(error as any)}`);
+      return false;
+    }
+    const match = data?.data?.find((d) => d.name.toLowerCase() === domain);
+    if (match?.status === 'verified') {
+      logger.info(`✉️  Resend email delivery ready — ${summary}, domain ${domain} verified`);
+      return true;
+    }
+    logger.error(
+      `Resend: ${domain} is ${match ? `"${match.status}"` : 'not added'} in this Resend account — ${summary}. ` +
+        'Sends will be refused until the domain is verified (Resend → Domains, then add its DNS records).'
+    );
+    return false;
+  }
+
   const partial = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].filter((k) => !process.env[k]);
   if (partial.length && partial.length < 3) {
     logger.error(`SMTP is partly configured — missing ${partial.join(', ')}. SMTP email is disabled.`);
@@ -251,4 +351,5 @@ export const verifyEmailConnection = async (): Promise<boolean> => {
 export const closeEmailConnection = (): void => {
   transporter?.close();
   transporter = null;
+  resendClient = null;
 };
