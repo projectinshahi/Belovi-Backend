@@ -27,6 +27,7 @@
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^10.1.2",
     "razorpay": "^2.9.6",
+    "resend": "^6.34.1",
     "uuid": "^9.0.1",
     "winston": "^3.19.0",
     "zod": "^3.23.4"

@@ -139,10 +139,10 @@ const deliverOtp = async (email: string, otp: string, tag: string): Promise<bool
       );
       return true;
     }
-    const missing = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].filter((k) => !process.env[k]);
+    const missing = ['RESEND_API_KEY', 'FROM_EMAIL'].filter((k) => !process.env[k]?.trim());
     logger.error(
       `[${tag}] Registration OTP requested but email delivery is not configured ` +
-        `(missing: ${missing.join(', ')}). Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and SMTP_FROM, ` +
+        `(missing: ${missing.join(', ')}). Set RESEND_API_KEY and FROM_EMAIL (or the SMTP_* settings), ` +
         'or set OTP_CONSOLE_FALLBACK=true for local development.'
     );
     return false;
@@ -266,7 +266,8 @@ export const startRegistration = asyncHandler(async (req: Request, res: Response
 });
 
 /**
- * Step 2 — check the code and create the account.
+ * Step 2 — check the code and create the account. Not a sign-in: no session
+ * is created here.
  *
  * Name, email and password all come from the stored record; the request supplies
  * only the address and the code. A caller therefore cannot verify one address
@@ -357,10 +358,12 @@ export const verifyRegistration = asyncHandler(async (req: Request, res: Respons
   // Used once, then gone: the code cannot be replayed.
   await PendingRegistration.deleteOne({ _id: claimed._id });
 
-  const token = generateToken(user._id.toString(), user.role);
-  setSessionCookie(res, token);
-
-  successResponse(res, 201, 'Account created successfully', sessionPayload(user, token));
+  // Verifying the code creates the account; it does not sign anyone in. No
+  // token, no cookie — the customer signs in on /sign-in with the email and
+  // password they just registered, through the same path as everyone else.
+  successResponse(res, 201, 'Registration successful. Please sign in with your email address and password.', {
+    email: user.email,
+  });
 });
 
 /** Step 2b — issue a fresh code for a registration already in progress. */

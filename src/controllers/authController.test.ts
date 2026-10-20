@@ -4,8 +4,10 @@
 // - Database: a throwaway database on a LOCAL MongoDB (TEST_MONGODB_URI, default
 //   mongodb://127.0.0.1:27017), dropped afterwards. Refuses any other host, so
 //   the configured (possibly production) database is never touched.
-// - Email: nodemailer's transport is replaced with an in-memory fake. No real
-//   email is sent; tests read the code from the captured message.
+// - Email: requests to api.resend.com are answered by an in-memory fake, so the
+//   real Resend SDK runs but no email leaves the machine; tests read the code
+//   from the captured message. nodemailer is faked too, to prove SMTP is not
+//   used (no duplicate send) while Resend is configured.
 import assert from 'assert';
 import crypto from 'crypto';
 import net, { type AddressInfo } from 'net';
@@ -19,7 +21,7 @@ import logger from '../utils/logger';
 import { ENV } from '../config/env';
 import { User } from '../models/User';
 import { PendingRegistration } from '../models/PendingRegistration';
-import { closeEmailConnection, connectViaOs } from '../utils/sendEmail';
+import { closeEmailConnection, connectViaOs, verifyEmailConnection } from '../utils/sendEmail';
 
 const LOCAL_URI = process.env.TEST_MONGODB_URI || 'mongodb://127.0.0.1:27017';
 if (!/^mongodb:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(LOCAL_URI)) {
@@ -29,13 +31,19 @@ const DB_NAME = `belovi_auth_test_${process.pid}`;
 
 // ── Fakes ────────────────────────────────────────────────────────────────────
 
-// Overrides whatever .env loaded: no real SMTP host is ever contacted.
-process.env.SMTP_HOST = 'smtp.test.invalid';
-process.env.SMTP_PORT = '587';
-process.env.SMTP_USER = 'sender@test.invalid';
-process.env.SMTP_PASS = 'not-a-real-password';
-process.env.SMTP_FROM = 'sender@test.invalid';
-process.env.OTP_CONSOLE_FALLBACK = 'false';
+// Overrides whatever .env loaded: no real provider is ever contacted.
+const TEST_EMAIL_ENV = {
+  RESEND_API_KEY: 're_test_not_a_real_key',
+  FROM_EMAIL: 'no-reply@belovi.test',
+  FROM_NAME: 'Belovi',
+  SMTP_HOST: 'smtp.test.invalid',
+  SMTP_PORT: '587',
+  SMTP_USER: 'sender@test.invalid',
+  SMTP_PASS: 'not-a-real-password',
+  SMTP_FROM: 'sender@test.invalid',
+  OTP_CONSOLE_FALLBACK: 'false',
+};
+Object.assign(process.env, TEST_EMAIL_ENV);
 
 // Log lines go to memory instead of logs/*.log, so tests can inspect them and
 // test addresses never reach the project's log files.
@@ -52,19 +60,45 @@ logger.add(
   })
 );
 
-interface Mail { to: string; subject: string; text?: string; html?: string }
+interface Mail { from?: string; to: string; subject: string; text?: string; html?: string }
+/** Messages the (fake) Resend API accepted. */
 const outbox: Mail[] = [];
+/** Messages sent over (fake) SMTP — must stay empty while Resend is configured. */
+const smtpOutbox: Mail[] = [];
 let smtpFailure: { code: string; message: string } | null = null;
+/** How the fake Resend API should answer the next sends: an HTTP error, or no network. */
+let resendFailure: { status: number; body: Record<string, unknown> } | 'network' | null = null;
+/** What GET /domains returns, for the startup check. */
+let resendDomains: { status: number; body: Record<string, unknown> } = {
+  status: 401,
+  body: { statusCode: 401, name: 'restricted_api_key', message: 'This API key is restricted to only send emails' },
+};
 
 (nodemailer as any).createTransport = () => ({
   sendMail: async (m: any) => {
     if (smtpFailure) throw Object.assign(new Error(smtpFailure.message), { code: smtpFailure.code });
-    outbox.push({ to: m.to, subject: m.subject, text: m.text, html: m.html });
-    return { messageId: `<test-${outbox.length}@local>` };
+    smtpOutbox.push({ to: m.to, subject: m.subject, text: m.text, html: m.html });
+    return { messageId: `<test-${smtpOutbox.length}@local>` };
   },
   verify: async () => true,
   close: () => {},
 });
+
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+const realFetch = globalThis.fetch;
+globalThis.fetch = (async (input: any, init?: any) => {
+  const url = typeof input === 'string' ? input : input.url;
+  if (!url.startsWith('https://api.resend.com/')) return realFetch(input, init);
+  assert.strictEqual(new Headers(init?.headers).get('authorization'), `Bearer ${process.env.RESEND_API_KEY}`);
+  if (url.endsWith('/domains')) return json(resendDomains.status, resendDomains.body);
+  if (resendFailure === 'network') throw new TypeError('fetch failed');
+  if (resendFailure) return json(resendFailure.status, resendFailure.body);
+  const body = JSON.parse(init.body);
+  outbox.push({ from: body.from, to: body.to[0], subject: body.subject, text: body.text, html: body.html });
+  return json(200, { id: `re-test-${outbox.length}` });
+}) as typeof fetch;
 
 // ── HTTP helpers ─────────────────────────────────────────────────────────────
 
@@ -141,9 +175,11 @@ test('valid registration emails one code and stores only hashes', async () => {
   const ttl = new Date(r.json.data.expiresAt).getTime() - Date.now();
   assert.ok(ttl > 4.9 * 60_000 && ttl <= 5 * 60_000, `expiry should be 5 minutes, got ${ttl}ms`);
 
-  assert.strictEqual(outbox.length, 1);
+  assert.strictEqual(outbox.length, 1, 'one message through Resend');
+  assert.strictEqual(smtpOutbox.length, 0, 'nothing through SMTP: no duplicate send');
   const mail = outbox[0];
   assert.strictEqual(mail.to, 'asha@example.com');
+  assert.strictEqual(mail.from, 'Belovi <no-reply@belovi.test>');
   const code = codeIn(mail);
   assert.ok(mail.html?.includes(code), 'HTML part carries the code');
   assert.ok(!mail.text!.includes(PASSWORD) && !mail.html!.includes(PASSWORD), 'password never emailed');
@@ -271,28 +307,107 @@ test('the verification email is a complete, lean message', async () => {
 
 // OTP delivery and verification
 
-test('SMTP authentication failure returns 503 and leaves nothing behind', async () => {
-  smtpFailure = { code: 'EAUTH', message: 'Invalid login: 535-5.7.8 Username and Password not accepted' };
+const UNVERIFIED_DOMAIN = {
+  status: 403,
+  body: {
+    statusCode: 403,
+    name: 'validation_error',
+    message: 'The belovi.test domain is not verified. Please, add and verify your domain on https://resend.com/domains',
+  },
+};
+
+test('Resend refusing an unverified sender domain returns 503 and leaves nothing behind', async () => {
+  resendFailure = UNVERIFIED_DOMAIN;
   const r = await post('/register', details());
   assert.strictEqual(r.status, 503);
-  assert.ok(!/EAUTH|535|Password not accepted|test\.invalid/.test(r.text), 'no SMTP detail leaks to the client');
+  assert.ok(!/validation_error|not verified|resend|belovi\.test/i.test(r.text), 'no provider detail leaks to the client');
   assert.strictEqual(await PendingRegistration.countDocuments(), 0);
+  assert.strictEqual(smtpOutbox.length, 0, 'no fallback send through SMTP');
+  assert.ok(logLines.some((l) => l.includes('Resend send failed') && l.includes('not verified in Resend')));
 });
 
-test('SMTP connection failure returns 503', async () => {
-  smtpFailure = { code: 'ECONNECTION', message: 'connect ECONNREFUSED' };
+test("Resend's test sender refusing a customer's address returns 503 and names the restriction", async () => {
+  resendFailure = {
+    status: 403,
+    body: {
+      statusCode: 403,
+      name: 'validation_error',
+      message:
+        'You can only send testing emails to your own email address (owner@example.com). To send emails to other recipients, please verify a domain at resend.com/domains, and change the `from` address to an email using this domain.',
+    },
+  };
+  const r = await post('/register', details());
+  assert.strictEqual(r.status, 503);
+  assert.ok(!/testing emails|owner@example\.com/.test(r.text), 'no provider detail leaks to the client');
+  assert.strictEqual(await PendingRegistration.countDocuments(), 0);
+  assert.ok(logLines.some((l) => l.includes("FROM_EMAIL is Resend's test sender")), 'log names the test-sender restriction');
+});
+
+test('an invalid Resend API key returns 503 and says so in the log', async () => {
+  resendFailure = { status: 403, body: { statusCode: 403, name: 'invalid_api_key', message: 'API key is invalid' } };
+  assert.strictEqual((await post('/register', details())).status, 503);
+  assert.ok(logLines.some((l) => l.includes('invalid_api_key') && l.includes('check RESEND_API_KEY')));
+});
+
+test('a Resend rate limit returns 503', async () => {
+  resendFailure = { status: 429, body: { statusCode: 429, name: 'rate_limit_exceeded', message: 'Too many requests' } };
   assert.strictEqual((await post('/register', details())).status, 503);
   assert.strictEqual(await PendingRegistration.countDocuments(), 0);
 });
 
-test('the correct code creates one verified account and a session', async () => {
+test('Resend unreachable (network failure) returns 503', async () => {
+  resendFailure = 'network';
+  assert.strictEqual((await post('/register', details())).status, 503);
+  assert.ok(logLines.some((l) => l.includes('could not reach api.resend.com')));
+  assert.strictEqual(await PendingRegistration.countDocuments(), 0);
+});
+
+test('without Resend settings, SMTP is used instead — still exactly one send', async () => {
+  delete process.env.RESEND_API_KEY;
+  try {
+    assert.strictEqual((await post('/register', details())).status, 200);
+    assert.strictEqual(outbox.length, 0);
+    assert.strictEqual(smtpOutbox.length, 1);
+    assert.strictEqual(smtpOutbox[0].to, 'asha@example.com');
+  } finally {
+    process.env.RESEND_API_KEY = TEST_EMAIL_ENV.RESEND_API_KEY;
+  }
+});
+
+test('with no email provider at all, registration answers 503 and names what is missing', async () => {
+  const saved = { ...process.env };
+  for (const k of ['RESEND_API_KEY', 'FROM_EMAIL', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS']) delete process.env[k];
+  try {
+    assert.strictEqual((await post('/register', details())).status, 503);
+    assert.ok(logLines.some((l) => l.includes('not configured') && l.includes('RESEND_API_KEY, FROM_EMAIL')));
+    assert.strictEqual(outbox.length + smtpOutbox.length, 0);
+  } finally {
+    Object.assign(process.env, saved);
+  }
+});
+
+test('SMTP connection failure (fallback path) returns 503', async () => {
+  delete process.env.RESEND_API_KEY;
+  smtpFailure = { code: 'ECONNECTION', message: 'connect ECONNREFUSED' };
+  try {
+    assert.strictEqual((await post('/register', details())).status, 503);
+    assert.strictEqual(await PendingRegistration.countDocuments(), 0);
+  } finally {
+    process.env.RESEND_API_KEY = TEST_EMAIL_ENV.RESEND_API_KEY;
+  }
+});
+
+test('the correct code creates one verified account — and signs nobody in', async () => {
   const code = await register();
   const r = await post('/register/verify', { email: 'asha@example.com', otp: code });
   assert.strictEqual(r.status, 201, r.text);
-  assert.ok(r.json.data.token);
-  assert.strictEqual(r.json.data.role, 'customer');
-  assert.deepStrictEqual(Object.keys(r.json.data).sort(), ['_id', 'email', 'name', 'role', 'token']);
-  assert.match(r.headers.get('set-cookie') || '', /jwt=.*HttpOnly.*SameSite=Strict/i);
+  // Registration is not a login: no token in the body, no session cookie.
+  assert.deepStrictEqual(Object.keys(r.json.data), ['email']);
+  assert.strictEqual(r.json.data.email, 'asha@example.com');
+  assert.ok(!('token' in r.json.data));
+  assert.strictEqual(r.headers.get('set-cookie'), null, 'no cookie of any kind');
+  assert.ok(!/eyJ[\w-]+\.[\w-]+\.[\w-]+/.test(r.text), 'no JWT anywhere in the response');
+  assert.match(r.json.message, /sign in/i);
 
   const user = await User.findOne({ email: 'asha@example.com' }).select('+password');
   assert.ok(user && user.isVerified && user.isActive && user.role === 'customer');
@@ -392,9 +507,9 @@ test('resend respects the per-address cap', async () => {
 test('a failed resend keeps the earlier code working and the cooldown clear', async () => {
   const first = await register();
   await skipCooldown('asha@example.com');
-  smtpFailure = { code: 'ETIMEDOUT', message: 'Greeting never received' };
+  resendFailure = 'network';
   assert.strictEqual((await post('/register/resend', { email: 'asha@example.com' })).status, 503);
-  smtpFailure = null;
+  resendFailure = null;
   // Not blocked by a cooldown for the send that failed…
   const pending = await PendingRegistration.findOne().lean();
   assert.ok(pending!.lastSentAt.getTime() < Date.now() - 60_000);
@@ -466,19 +581,35 @@ test('each registration request has an id, in its response header and its log li
   const r = await post('/register', details());
   const id = r.headers.get('x-request-id') || '';
   assert.match(id, /^[0-9a-f-]{36}$/);
-  assert.ok(logLines.some((l) => l.includes(`register ${id}`) && l.includes('SMTP accepted')), 'accepted send logged with the id');
+  assert.ok(logLines.some((l) => l.includes(`register ${id}`) && l.includes('Resend accepted')), 'accepted send logged with the id');
 });
 
-test('a failed send logs the code, the hint and the request id', async () => {
-  smtpFailure = { code: 'EAUTH', message: 'Invalid login: 535-5.7.8 Username and Password not accepted' };
+test('a failed send logs the provider error, the hint and the request id', async () => {
+  resendFailure = UNVERIFIED_DOMAIN;
   const r = await post('/register', details());
   assert.strictEqual(r.status, 503);
   const id = r.headers.get('x-request-id');
-  const line = logLines.find((l) => l.includes(`register ${id}`) && l.includes('SMTP send failed'));
+  const line = logLines.find((l) => l.includes(`register ${id}`) && l.includes('Resend send failed'));
   assert.ok(line, 'failure logged with the request id');
-  assert.match(line!, /EAUTH/);
-  assert.match(line!, /check SMTP_USER and SMTP_PASS/);
+  assert.match(line!, /validation_error 403/);
+  assert.match(line!, /not verified in Resend/);
   assert.ok(logLines.some((l) => l.includes(`register ${id}`) && l.includes('answered 503')));
+});
+
+test('startup check: a send-only Resend key is reported as configured', async () => {
+  resendDomains = { status: 401, body: { statusCode: 401, name: 'restricted_api_key', message: 'This API key is restricted to only send emails' } };
+  assert.strictEqual(await verifyEmailConnection(), true);
+  assert.ok(logLines.some((l) => l.includes('Resend email configured') && l.includes('send-only key')));
+});
+
+test('startup check: an unverified sender domain is flagged before any send', async () => {
+  resendDomains = { status: 200, body: { data: [{ id: 'd1', name: 'belovi.test', status: 'pending', region: 'us-east-1' }] } };
+  assert.strictEqual(await verifyEmailConnection(), false);
+  // Log lines are stored as JSON, so the quotes around the status are escaped.
+  assert.ok(logLines.some((l) => l.includes('belovi.test is') && l.includes('pending') && l.includes('refused until the domain is verified')));
+  resendDomains = { status: 200, body: { data: [{ id: 'd1', name: 'belovi.test', status: 'verified', region: 'us-east-1' }] } };
+  assert.strictEqual(await verifyEmailConnection(), true);
+  assert.ok(logLines.some((l) => l.includes('domain belovi.test verified')));
 });
 
 test('a client request id is reused only when it is a plain token', async () => {
@@ -509,12 +640,29 @@ test('unverified accounts cannot sign in with a password', async () => {
   assert.strictEqual((await post('/signin', { email: 'old@example.com', password: 'Wr0ng!Pass' })).status, 401);
 });
 
-test('the new session works on an existing protected route', async () => {
+test('after registering, protected routes stay closed until a manual sign-in', async () => {
   const code = await register();
   const v = await post('/register/verify', { email: 'asha@example.com', otp: code });
-  const authed = await call('GET', '/api/v1/cart', undefined, { token: v.json.data.token });
-  assert.strictEqual(authed.status, 200, authed.text);
+  assert.strictEqual(v.status, 201);
+  // Nothing from registration grants access.
   assert.strictEqual((await call('GET', '/api/v1/cart')).status, 401);
+
+  // Manual sign-in with the registered email and password — the only way in.
+  const s = await post('/signin', { email: 'asha@example.com', password: PASSWORD });
+  assert.strictEqual(s.status, 200, s.text);
+  assert.ok(s.json.data.token);
+  assert.match(s.headers.get('set-cookie') || '', /jwt=.*HttpOnly.*SameSite=Strict/i);
+  const authed = await call('GET', '/api/v1/cart', undefined, { token: s.json.data.token });
+  assert.strictEqual(authed.status, 200, authed.text);
+});
+
+test('manual sign-in after registration rejects a wrong password', async () => {
+  const code = await register();
+  await post('/register/verify', { email: 'asha@example.com', otp: code });
+  const r = await post('/signin', { email: 'asha@example.com', password: 'Wr0ng!Pass' });
+  assert.strictEqual(r.status, 401);
+  assert.strictEqual(r.headers.get('set-cookie'), null);
+  assert.ok(!r.json.data?.token);
 });
 
 test('admin login is unaffected', async () => {
@@ -563,14 +711,21 @@ test('a database outage returns a generic 500 in production', async () => {
     await User.deleteMany({});
     await PendingRegistration.deleteMany({});
     outbox.length = 0;
+    smtpOutbox.length = 0;
     logLines.length = 0;
     smtpFailure = null;
+    resendFailure = null;
+    resendDomains = {
+      status: 401,
+      body: { statusCode: 401, name: 'restricted_api_key', message: 'This API key is restricted to only send emails' },
+    };
     closeEmailConnection();
     try {
       await fn();
-      // Whatever the test did, no log line may carry a password, the SMTP
-      // password, or a code that was emailed.
-      const secrets = [PASSWORD, process.env.SMTP_PASS!, ...outbox.map((m) => m.text?.match(/\b(\d{6})\b/)?.[1])]
+      // Whatever the test did, no log line may carry a password, a provider
+      // credential, or a code that was emailed.
+      const codes = [...outbox, ...smtpOutbox].map((m) => m.text?.match(/\b(\d{6})\b/)?.[1]);
+      const secrets = [PASSWORD, TEST_EMAIL_ENV.SMTP_PASS, TEST_EMAIL_ENV.RESEND_API_KEY, ...codes]
         .filter((s): s is string => Boolean(s));
       const leaked = logLines.find((l) => secrets.some((s) => l.includes(s)));
       assert.ok(!leaked, `secret in log: ${leaked}`);
