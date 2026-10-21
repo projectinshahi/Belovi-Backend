@@ -20,7 +20,7 @@ export interface ISiteSettings extends Document {
 }
 
 const DEFAULTS = {
-  whatsappNumber: '917736830303',
+  whatsappNumber: '918848415285',
   contactEmail: 'belovi2026@gmail.com',
   contactPhone: '',
   addressLine: '',
