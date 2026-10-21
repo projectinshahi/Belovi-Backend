@@ -37,7 +37,7 @@ exports.SiteSettings = void 0;
 exports.getOrCreateSiteSettings = getOrCreateSiteSettings;
 const mongoose_1 = __importStar(require("mongoose"));
 const DEFAULTS = {
-    whatsappNumber: '917736830303',
+    whatsappNumber: '918848415285',
     contactEmail: 'belovi2026@gmail.com',
     contactPhone: '',
     addressLine: '',
