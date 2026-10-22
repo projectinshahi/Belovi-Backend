@@ -43,7 +43,11 @@ const corsConfig = {
         // Allow requests with no origin (mobile apps, Postman, etc.)
         if (!origin)
             return callback(null, true);
-        if (allowedOrigins.includes(origin)) {
+        // In development any localhost port is allowed: Next moves to the next free
+        // port when its own is taken, and a strict list then blocks every request
+        // as a bare "Network Error". Production still uses CORS_ORIGIN only.
+        const isLocalDev = env_1.ENV.NODE_ENV === 'development' && /^http:\/\/localhost:\d+$/.test(origin);
+        if (allowedOrigins.includes(origin) || isLocalDev) {
             callback(null, true);
         }
         else {
