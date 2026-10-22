@@ -11,7 +11,7 @@ exports.updateSiteSettings = (0, asyncHandler_1.asyncHandler)(async (req, res) =
     const settings = await (0, SiteSettings_1.getOrCreateSiteSettings)();
     const { whatsappNumber, contactEmail, contactPhone, addressLine, instagramUrl } = req.body;
     if (whatsappNumber !== undefined) {
-        // Strip anything that isn't a digit — the admin might paste "+91 77368 30303".
+        // Strip anything that isn't a digit — admins may paste "+91 88484 15285".
         settings.whatsappNumber = whatsappNumber.replace(/\D/g, '');
     }
     // The rest are display strings; `contactPhone` keeps its spacing on purpose so

@@ -8,7 +8,7 @@ import mongoose, { Document, Schema } from 'mongoose';
  * as the studio asks for them.
  */
 export interface ISiteSettings extends Document {
-  /** Digits only, country code first — the form wa.me expects (e.g. "917736830303"). */
+  /** Digits only, country code first — the footer wa.me destination expects "918848415285". */
   whatsappNumber: string;
   /** Customer-care address shown on the contact surfaces. */
   contactEmail: string;
